@@ -18,6 +18,12 @@ Native iPhone app (SwiftUI, iOS 17+) on Supabase, for close friends to split tri
 - **Screens, navigation, or presentation (sheet, push, alert):** `docs/screen-map.md`
 - **Cross-system flows** (invite links, realtime, payment logging): `docs/flows.md` and `docs/architecture.md`
 
+## Working in the repo
+
+- **iOS:** the Xcode project is generated. Edit `ios/project.yml`, then run `xcodegen` in `ios/`; `TripSplit.xcodeproj` is not committed. Tests use Swift Testing.
+- **Database:** `supabase db start`, then `supabase test db` runs the pgTAP tests in `supabase/tests/database/`.
+- **CI:** `.github/workflows/ci.yml` runs both on every PR.
+
 ## Rules that bite
 
 - Money writes go through Postgres functions in one transaction; the app never inserts expenses, shares, or payments directly. Balances are calculated, never stored.
