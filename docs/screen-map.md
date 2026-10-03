@@ -13,7 +13,8 @@ flowchart LR
         profile["Profile [21]"]
     end
     paym -->|creator| trips
-    paym -->|from invite| welcome["Added to trip [I04]"] --> trips
+    paym -->|from invite| welcome["Added to trip [I04]"]
+    welcome -->|View Trips| trips
 
     trips -- "+ / Add Trip" --> addtrip["Add trip [05]"] --> members["Add members [06, 07]"] --> trip["Trip detail [08, 10]"]
     trips -- card --> trip
@@ -22,6 +23,7 @@ flowchart LR
     expense --> paidby["Paid by [09a]"]
     expense --> split["Split [09b–09e]"]
     expense -- delete --> delconfirm["Delete confirm [E2]"]
+    welcome -->|Add expense| expense
 
     chip(("Balance chip")) --> balance["Your Balance [13]"] --> person["Person [14, 18, P1]"]
     person -- "Venmo / Apple Cash" --> payapp["Pay app<br/>(outside TripSplit)"] --> log["Log sheet [16, 19, P3]"]
