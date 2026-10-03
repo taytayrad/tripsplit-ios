@@ -30,7 +30,7 @@ erDiagram
         uuid id PK
         text name
         text image_path "nullable, Supabase Storage"
-        jsonb stamp "shape, glyph, ink, rotation, offset"
+        jsonb stamp "shape, glyph, ink, rotation, offsetX, offsetY"
         date start_date "nullable"
         date end_date "nullable"
         text invite_token UK
@@ -137,4 +137,8 @@ Every multi-row money write is one function in one transaction, so invariants ho
 
 - **Why deltas are snapshotted:** the PRD calculates the dollar line "from that event's effect on you". Recomputing that effect later, after edits and deletes, would change old Activity rows. A snapshot freezes it.
 - **Realtime:** clients subscribe to `expenses`, `expense_shares`, `payments`, `trip_members`, and `activity_events` for their trips, and re-query balances on change.
-- **Stamp** is stored, not regenerated, so a trip looks the same on every device.
+- **Stamp** is stored, not regenerated, so a trip looks the same on every device. Its JSON matches the app's `StampSpec` (`ios/TripSplit/DesignSystem/Stamp.swift`):
+  ```json
+  {"shape": "ticket", "glyph": "road", "ink": "blue", "rotation": -6.0, "offsetX": 0.02, "offsetY": -0.015}
+  ```
+  `shape`: ticket, circle, octagon, rounded, hexagon, or postage. `glyph`: road, house, market, plane, palm, mountain, tent, boat, or sun. `ink`: blue, green, red, purple, orange, or teal. `rotation`: degrees, within ±8. `offsetX` and `offsetY`: fractions of the frame, within ±0.025. The app generates it at trip creation, and the server stores it as given.
