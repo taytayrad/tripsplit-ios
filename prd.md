@@ -271,7 +271,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Sign out confirmation:** Sign out asks "Sign out of TripSplit?" / "Your trips and balances stay saved. Sign back in with Apple anytime." with Cancel and Sign out.
 
 ### Build decisions
-- **Stamp glyphs in code are SF Symbols** (road.lanes, house, cart, airplane, beach.umbrella, mountain.2, tent, sailboat, sun.max), so they get system weights, accessibility, and dark mode for free. The hand-drawn Figma glyphs are a visual guide. Border shapes are drawn in SwiftUI, and their stroke widths scale with the stamp's size.
+- **Stamp glyphs in code are SF Symbols** (road.lanes, house, cart, airplane, beach.umbrella, mountain.2, tent, sailboat, sun.max), so they get system weights, accessibility, and dark mode for free. The Figma Stamp Glyph components use the same SF Symbol vectors, so design and code match. Border shapes are drawn in SwiftUI, and their stroke widths scale with the stamp's size.
 - **Color tokens** ship as an asset catalog with light and dark values from Figma. Backgrounds, separators, and primary text use iOS system colors directly. Secondary text uses `tsSecondary` (#6C6C70 light) rather than the system's translucent gray, to pass AA contrast.
 
 ### Assumed in the prototype, not yet confirmed
