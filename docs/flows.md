@@ -1,0 +1,124 @@
+# Flows
+
+Sequence diagrams for the three hardest flows, then the state machines. Function names refer to [`data-model.md`](data-model.md) › Write paths.
+
+## Joining from an invite link
+
+```mermaid
+sequenceDiagram
+    actor T as Taylor
+    actor A as Alex
+    participant Msg as Messages
+    participant Inv as Edge fn: invite
+    participant Store as App Store
+    participant App as TripSplit (Alex)
+    participant DB as Postgres
+
+    T->>Msg: Share sheet → text with /join/:token
+    A->>Msg: Taps link
+    Msg->>Inv: GET /join/:token
+    alt App installed
+        Inv-->>App: Open app with token
+    else Not installed
+        Inv-->>Store: Redirect
+        A->>Store: Installs, opens app
+        Note over A,App: May need to tap the link again<br/>(no Universal Links yet)
+    end
+    App->>App: Sign in with Apple (if needed) → notifications → pay methods
+    App->>DB: join_trip(token)
+    DB->>DB: Insert trip_member (no-op if already a member)<br/>Insert activity_event member_joined
+    DB-->>App: Trip
+    App->>App: "Taylor added you to a trip!" → View Trips / Add expense
+```
+
+## Adding an expense
+
+```mermaid
+sequenceDiagram
+    actor T as Taylor
+    participant App as TripSplit (Taylor)
+    participant DB as Postgres
+    participant RT as Realtime
+    participant Push as Edge fn: push
+    participant APNs
+    participant Other as Alex's app
+
+    T->>App: Amount, description, payer, split, trip
+    App->>App: Live preview (display only)
+    T->>App: Save
+    App->>DB: save_expense(expense, split_inputs)
+    DB->>DB: Compute shares (remainder rule)<br/>Insert expense, shares, activity_event with deltas
+    alt Save fails
+        DB-->>App: Error
+        App->>App: Stay on screen with Retry
+    else Saved
+        DB-->>App: OK
+        DB->>RT: Row changes
+        RT-->>Other: Change event → re-query balances
+        DB->>Push: Webhook: activity_events insert
+        Push->>Push: Recipients = members whose delta ≠ 0,<br/>minus actor, minus notify_expense = false
+        Push->>APNs: Send
+    end
+```
+
+## Logging a payment across trips
+
+```mermaid
+sequenceDiagram
+    actor Y as You
+    participant App as TripSplit
+    participant Pay as Venmo
+    participant DB as Postgres
+
+    Y->>App: Jordan → Venmo (owe $90)
+    App->>Pay: Open with Jordan + $90
+    Y->>Pay: Pays $50
+    Y->>App: Returns (nothing logged yet)
+    App->>App: Log sheet "Did you pay Jordan?" $90
+    Y->>App: Edits to $50
+    App->>App: "Pays off Lake House ($30) first,<br/>then $20 toward Coast Road."
+    Y->>App: Log $50 payment
+    App->>DB: log_payment(Jordan, 5000, pay, venmo, request_id)
+    DB->>DB: Order shared open trips oldest first<br/>Insert payment LH 3000, payment CR 2000<br/>Insert activity_events
+    DB-->>App: Payments
+    App->>App: Jordan screen: You owe $40
+    Note over App,DB: Retrying with the same request_id<br/>creates nothing new
+```
+
+## State machines
+
+### Trip
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: create_trip
+    Active --> Active: expenses, payments, members
+    Active --> SettledHidden: dates set, end date passed, your net = 0
+    SettledHidden --> Active: net ≠ 0 (new expense)
+    Active --> Deleted: delete_trip
+    SettledHidden --> Deleted: delete_trip
+    Deleted --> Active: undelete_trip (expenses as of deletion return)
+```
+
+"SettledHidden" is per viewer. It's calculated, not stored.
+
+### Member
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: create_trip (creator) / join_trip / added
+    Active --> RemovedKept: remove_member(keep)
+    Active --> RemovedWiped: remove_member(wipe)
+    RemovedKept --> RemovedKept: can still be paid or recorded
+    note right of RemovedKept: No trip access.<br/>Balances still count.
+    note right of RemovedWiped: No trip access.<br/>Shares re-split.
+```
+
+### Payment
+
+```mermaid
+stateDiagram-v2
+    [*] --> Logged: log_payment (one row per trip touched)
+    Logged --> Deleted: delete_payment (payer or payee)
+    Deleted --> [*]
+```

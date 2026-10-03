@@ -1,0 +1,148 @@
+# Implementation plan
+
+How TripSplit gets built, in phases. Each phase ends on **exit criteria**: checkable conditions, not "feels done". The order front-loads risk: money math and data rules first, then vertical slices of the app on top of a backend already proven by tests.
+
+Reference: [`prd.md`](../prd.md) for behavior, [`money-rules.md`](money-rules.md) for math, [`data-model.md`](data-model.md) for schema, [`screen-map.md`](screen-map.md) for screens and Figma.
+
+## Repo layout
+
+```
+ios/            Xcode project (SwiftUI app + unit tests)
+supabase/       migrations/, functions/ (edge functions), tests/ (pgTAP)
+docs/           reference docs (this folder)
+prd.md          product requirements + decision log
+```
+
+## Phase overview
+
+| Phase | Goal | Depends on |
+|---|---|---|
+| 0. Foundations | Project skeletons, CI, design tokens in code | — |
+| 1. Money core | Schema, RPC functions, balances, and RLS, all proven by golden-case tests | 0 |
+| 2. Accounts and trips | Sign in, onboarding, trips, invite links | 1 |
+| 3. Expenses | Expense form, four splits, edit and delete, live updates | 2 |
+| 4. Balances and settling | Balance chip, Your Balance, person screen, logging payments | 3 |
+| 5. Activity and notifications | Feed, undelete, push, Profile | 4 |
+| 6. Hardening and beta | Failure states, accessibility, TestFlight | 5 |
+
+A **parallel track** runs alongside: user testing the Figma prototype during phases 0–2, so its feedback lands before phases 3–4 build those screens.
+
+---
+
+## Phase 0: Foundations
+
+**Build**
+- Xcode project in `ios/`: SwiftUI app, iOS 17 minimum, `supabase-swift` via Swift Package Manager, a unit test target.
+- `supabase init` in `supabase/`; local stack via `supabase start`.
+- Design tokens in code, from the Figma variables: color assets for `Color.tsOwe` and the other semantic colors (light and dark), `Spacing` and `Radius` constants, `StampInk` colors. Text styles map to Dynamic Type.
+- Stamp renderer: draws a trip stamp from `{shape, glyph, ink, rotation, offset}` in SwiftUI, using the 6 shapes and 9 glyphs from the Figma Stamps page. The border stroke width scales with the stamp's size.
+- GitHub Actions: build and test the iOS app; run pgTAP tests against a local Supabase.
+
+**Your tasks** (Apple and Supabase accounts)
+- Choose a bundle ID; enable Sign in with Apple and Push Notifications on the App ID.
+- Create an APNs key (.p8) and a Sign in with Apple Services ID and key.
+- Create the hosted Supabase project; add Apple as an auth provider.
+
+**Exit criteria**
+- The app builds and launches in the Simulator; CI is green on `main`.
+- `supabase start` runs locally, and an empty pgTAP test passes in CI.
+- A debug screen shows every color token in light and dark mode, and all 6 stamp shapes in all 6 inks, none cropped.
+
+## Phase 1: Money core (backend, test-first)
+
+**Build**, in this order, with tests written before each function:
+1. Migrations for every table in `data-model.md`, with constraints, the 20-member trigger, and the share-sum trigger.
+2. Split computation (remainder rule), shared by `save_expense`.
+3. `pair_balances` view, plus trip net, combined balance, and header total queries.
+4. RPC functions: `create_trip`, `join_trip`, `save_expense`, `delete_expense`, `log_payment` (capped, oldest trip first, idempotent), `delete_payment`, `remove_member` (keep and wipe), `delete_trip`, `undelete_trip`. Each writes its `activity_events` row with deltas.
+5. RLS policies per `permissions.md`, so clients can't write money tables directly.
+6. A small Swift `SplitCalculator` for the form's live preview, tested against the same split golden cases.
+
+**Exit criteria**
+- Every golden case in `money-rules.md` (S, M, A) is a pgTAP test, and all pass.
+- Split golden cases pass in Swift too, with identical results.
+- RLS tests: a non-member can't read a trip; a removed member loses access; direct inserts into `expenses` and `payments` are rejected.
+- Retrying `log_payment` with the same `request_id` creates nothing new.
+
+## Phase 2: Accounts and trips
+
+**Build**
+- Sign in with Apple through Supabase Auth (no phone number); profile creation.
+- Onboarding: the notification explainer, then the system prompt; pay methods with Venmo username.
+- Trips tab: empty state with three stamps, trip cards, hiding settled trips plus "Show settled trips". Tab bar, and the header with balance chip (showing $0 until phase 4) and Add.
+- Add trip and edit trip: name, generated stamp, optional photo (Storage), dates; members list, swipe-to-remove with the keep-or-wipe alert; delete trip.
+- Trip detail: avatar, chips, balance block (wired in phase 4), empty expenses.
+- Invite: share sheet with link; `invite` edge function redirect page; `join_trip`; welcome modal ("Taylor added you to a trip!"); invite context on sign in.
+
+**Exit criteria**
+- On two simulators with two Apple IDs: A creates a trip and shares the link; B taps it, signs in, completes onboarding, sees the welcome modal, and lands on Trips with the trip.
+- A trip with past dates at $0 hides; one without dates never does.
+- Removing a member shows the keep-or-wipe choice and calls `remove_member` with that choice.
+
+## Phase 3: Expenses
+
+**Build**
+- Expense form as a sheet: decimal pad amount, description with keyword icon (tap to override), "Paid by you and split equally" controls, trip picker (default trip rules, including preselecting a trip you just joined), date.
+- Paid by picker (single select, checkmark).
+- Split screens: Equally (checks, "Select all" only when someone's unchecked, per-person footer), Exact and Percent (decimal pad), Shares (number pad); running total pinned above the keyboard; Save unavailable until valid, with the reason shown.
+- Edit (same form), delete from the form and by swipe, with the confirmation alert.
+- Expense rows show only your part ("You owe", "You lent").
+- Realtime: subscribe to trip rows and refresh on change.
+- Online-only saves: a failed save stays on screen with Retry.
+
+**Exit criteria**
+- Split golden cases S1–S12 reproduce in the UI exactly.
+- An expense saved on device A appears on device B within a few seconds, without a manual refresh.
+- Deleting an expense removes it from both devices; undeleting its trip doesn't bring it back.
+
+## Phase 4: Balances and settling
+
+**Build**
+- Balance chip on every main screen: signed and colored, tapping opens Your Balance.
+- Your Balance sheet: balance block with "Across N trips", rows grouped under "You owe" and "Owes you", unsigned.
+- Person screen: balance block, trip groups (newest first), the rule for showing settled trips, neutral payment lines.
+- Pay bar: shared methods only (absent, never disabled), Cash always shown, Record a Payment for people who owe you.
+- Pay apps: Venmo opens prefilled; Zelle and Apple Cash (via Messages) open with the amount copied.
+- Log sheet: prefilled, editable on a decimal pad, capped at the amount owed with a reason, the allocation note when the payment touches more than one trip, "Not yet". Cash uses it as the confirm step.
+- Settled state: "Settled / $0 / You and Alex are settled", confetti (static under Reduce Motion), pay bar removed.
+- Payment delete (payer or payee).
+
+**Exit criteria**
+- Balance golden cases M1–M10 and allocation cases A1–A6 reproduce end to end through the UI.
+- The header chip always equals the sum of the Your Balance rows (checked by a test on fixture data).
+- Coming back from Venmo without logging changes nothing.
+
+## Phase 5: Activity and notifications
+
+**Build**
+- Activity feed: statements per the PRD grammar, dollar lines per `events.md`, timestamps, search, taps (expense to edit, trip to detail, a deleted trip to the undelete alert).
+- Device token registration; `push` edge function implementing the event matrix, respecting preferences and never notifying the actor.
+- Profile: name, "Signed in with Apple", pay methods, notification switches, sign out with confirmation.
+
+**Exit criteria**
+- Every row of the event matrix in `events.md` produces the specified Activity row, dollar line, and push recipients (integration tests on the edge function, plus a manual pass on device).
+- Turning off a notification type stops that push.
+- Deleting a trip and undeleting it from Activity restores its balances exactly (golden cases M6 and M7).
+
+## Phase 6: Hardening and beta
+
+**Build**
+- Failure and empty states: no connection, failed save with Retry, empty Activity, Your Balance with everything settled, notifications denied.
+- Accessibility: Dynamic Type up to accessibility sizes, VoiceOver labels on every amount ("You owe Alex 90 dollars"), 44 pt touch targets (the balance chip especially), contrast already AA by token.
+- Dark mode pass on every screen.
+- App Store Connect, TestFlight, privacy manifest, and the App Store privacy "nutrition label" (no tracking, no phone).
+- Run the prototype's test tasks on the real app with 5 friends.
+
+**Exit criteria**
+- A TestFlight build is installed by the close-friends beta group.
+- Zero critical accessibility issues in an Accessibility Inspector audit of the core flows.
+- All test tasks completed by testers without help (or the misses logged as issues).
+
+---
+
+## Later (not in this plan)
+
+- Whimsy ideas (stamp slam, smart stamp glyphs, passport). Parked.
+- Overpaying (logging more than owed). Disallowed this pass.
+- Universal Links once there's a domain; deferred deep linking.
+- Contacts matching; currencies beyond USD; offline entry. Out of scope per the PRD.
