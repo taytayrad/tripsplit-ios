@@ -60,7 +60,7 @@ final class AppModel {
             // Apple shares the name only on the very first sign-in.
             if let name = fullName.map({ PersonNameComponentsFormatter().string(from: $0) }), !name.isEmpty,
                let id = userId {
-                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).execute()
+                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).run()
             }
         } catch { self.error = "Couldn't sign in. Try again." }
     }
@@ -73,7 +73,7 @@ final class AppModel {
         do {
             try await db.auth.signInAnonymously()
             if let id = userId {
-                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).execute()
+                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).run()
                 await loadProfile()
             }
         } catch { self.error = "Test sign-in failed. Is the local Supabase running?" }
@@ -103,7 +103,7 @@ final class AppModel {
         do {
             try await db.from("profiles").update(PayMethodsUpdate(venmo_username: venmo?.isEmpty == false ? venmo : nil,
                                                         has_zelle: zelle, has_apple_cash: appleCash))
-                .eq("id", value: id).execute()
+                .eq("id", value: id).run()
             await finishOnboarding()
         } catch { self.error = "Couldn't save. Check your connection and try again." }
     }
@@ -120,17 +120,17 @@ final class AppModel {
 
     func loadProfile() async {
         guard let id = userId else { return }
-        profile = try? await db.from("profiles").select().eq("id", value: id).single().execute().value
+        profile = try? await db.from("profiles").select().eq("id", value: id).single().value()
     }
 
     func refresh() async {
         do {
             async let t: [Trip] = db.from("trips")
                 .select("*, trip_members(user_id, position, removed_at, profiles!trip_members_user_id_fkey(id, display_name))")
-                .is("deleted_at", value: nil).order("created_at", ascending: false).execute().value
-            async let n: [TripNet] = db.rpc("my_trip_nets").execute().value
-            async let h: Int = db.rpc("my_header_total").execute().value
-            async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).execute().value
+                .is("deleted_at", value: nil).order("created_at", ascending: false).value()
+            async let n: [TripNet] = db.rpc("my_trip_nets").value()
+            async let h: Int = db.rpc("my_header_total").value()
+            async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
             (trips, nets, headerTotal, people) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
     }
@@ -142,7 +142,7 @@ final class AppModel {
     func createTrip(name: String, start: Date?, end: Date?, photo: Data?) async throws -> Trip {
         let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
             p_name: name, p_stamp: .random(), p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
-        )).execute().value
+        )).value()
         if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
         guard let trip = trip(id) else { throw URLError(.badServerResponse) }
@@ -151,7 +151,7 @@ final class AppModel {
 
     func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?, photo: Data?) async throws {
         try await db.from("trips").update(TripDetailsUpdate(name: name, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
-            .eq("id", value: id).execute()
+            .eq("id", value: id).run()
         if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
     }
@@ -159,7 +159,7 @@ final class AppModel {
     private func setPhoto(tripId: UUID, _ data: Data) async throws {
         let path = "\(tripId.uuidString.lowercased())/cover-\(Int(Date().timeIntervalSince1970)).jpg"
         try await db.storage.from("trip-photos").upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
-        try await db.from("trips").update(["image_path": path]).eq("id", value: tripId).execute()
+        try await db.from("trips").update(["image_path": path]).eq("id", value: tripId).run()
     }
 
     func photoURL(_ path: String) async -> URL? {
@@ -167,17 +167,17 @@ final class AppModel {
     }
 
     func deleteTrip(_ id: UUID) async throws {
-        try await db.rpc("delete_trip", params: ["p_trip": id]).execute()
+        try await db.rpc("delete_trip", params: ["p_trip": id]).run()
         await refresh()
     }
 
     func addMember(_ user: UUID, to trip: UUID) async throws {
-        try await db.rpc("add_member", params: ["p_trip": trip, "p_user": user]).execute()
+        try await db.rpc("add_member", params: ["p_trip": trip, "p_user": user]).run()
         await refresh()
     }
 
     func removeMember(_ user: UUID, from trip: UUID, keepBalance: Bool) async throws {
-        try await db.rpc("remove_member", params: RemoveMemberArgs(p_trip: trip, p_user: user, p_mode: keepBalance ? "keep" : "wipe")).execute()
+        try await db.rpc("remove_member", params: RemoveMemberArgs(p_trip: trip, p_user: user, p_mode: keepBalance ? "keep" : "wipe")).run()
         await refresh()
     }
 
@@ -191,7 +191,7 @@ final class AppModel {
 
     private func loadInvitePreview() async {
         guard let token = pendingInvite else { invitePreview = nil; return }
-        let rows: [InvitePreview] = (try? await db.rpc("invite_preview", params: ["p_invite_token": token]).execute().value) ?? []
+        let rows: [InvitePreview] = (try? await db.rpc("invite_preview", params: ["p_invite_token": token]).value()) ?? []
         invitePreview = rows.first
     }
 
@@ -199,7 +199,7 @@ final class AppModel {
         guard let token = pendingInvite else { return }
         do {
             let alreadyOn = trips.contains { $0.inviteToken == token }
-            let id: UUID = try await db.rpc("join_trip", params: ["p_invite_token": token]).execute().value
+            let id: UUID = try await db.rpc("join_trip", params: ["p_invite_token": token]).value()
             pendingInvite = nil; invitePreview = nil
             await refresh()
             // Someone already on the trip just opens it; newcomers get the welcome.

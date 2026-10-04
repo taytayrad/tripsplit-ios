@@ -1,3 +1,4 @@
+import Supabase
 import Foundation
 
 // Request bodies. Optional fields are always sent, as null when empty: the database functions need every
@@ -52,4 +53,11 @@ struct RemoveMemberArgs: Encodable, Sendable {
     let p_trip: UUID
     let p_user: UUID
     let p_mode: String
+}
+
+// supabase-swift's PostgrestResponse isn't Sendable, so AppModel (main actor) can't receive it.
+// These run the query off the main actor and hand back only the decoded, Sendable value.
+extension PostgrestBuilder {
+    func run() async throws { _ = try await execute() }
+    func value<T: Decodable & Sendable>() async throws -> T { try await execute().value }
 }

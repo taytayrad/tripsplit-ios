@@ -13,7 +13,7 @@ jobs:
       - run: brew install xcodegen
       - name: Generate project
         working-directory: ios
-        run: xcodegen
+        run: xcodegen && xcodebuild -version
       - name: Test
         working-directory: ios
         run: |
