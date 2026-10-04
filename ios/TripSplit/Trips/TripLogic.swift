@@ -11,8 +11,12 @@ enum TripVisibility {
 
 enum InviteLink {
     /// The link people text each other: the invite page, which opens the app (or the App Store).
-    static func shareURL(token: String, backend: URL = Backend.url) -> URL {
-        backend.appending(path: "functions/v1/invite/\(token)")
+    /// A static page (`site/join/`), because Supabase's functions domain won't serve HTML. The token is in the
+    /// fragment so it never reaches the host.
+    static let page = URL(string: "https://taytayrad.github.io/tripsplit-invite/join/")!
+
+    static func shareURL(token: String, page: URL = page) -> URL {
+        URL(string: page.absoluteString + "#" + token)!
     }
 
     /// The app URL the invite page opens.
@@ -24,8 +28,8 @@ enum InviteLink {
         let token: String?
         if url.scheme == "tripsplit" {
             token = url.host() == "join" ? parts.first : nil
-        } else if let i = parts.firstIndex(of: "invite"), i >= 1, parts[i - 1] == "v1", i + 1 < parts.count {
-            token = parts[i + 1]
+        } else if parts.last == "join" {
+            token = url.fragment
         } else {
             token = nil
         }
