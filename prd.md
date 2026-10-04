@@ -229,7 +229,7 @@ These resolve conflicts and Open items above. Where this section and an earlier 
 - **Wiping a removed member who is owed money:** the same keep-or-wipe choice applies. Wiping cancels their credit, re-split across the remaining members.
 - **Wipe algorithm:** accepted for the MVP as written in `docs/money-rules.md` › Wipe. It's a rare action and may change after user feedback.
 - **Payment amount (supersedes the earlier "not capped" decision):** for this pass, a payment can be at most the combined amount owed with that person. The log sheet won't log more and says why. Overpaying may come back later.
-- **Removed members:** lose access to the trip and its Activity. Their balance stays only if it was kept.
+- **Removed members:** lose access to the trip and its Activity. Their balance stays only if it was kept. With a kept balance they still see that trip's name and stamp where it appears on a person's screen, and they can't add, edit, or delete its expenses (issue #12).
 - **Expense icon:** keyword match from the description to the starter icons (groceries, restaurant, coffee, drinks, gas, rideshare, flight, lodging, tickets, shopping, general). Tapping the icon overrides it.
 - **Platform:** iOS 17 minimum.
 - **Your Balance sheet (supersedes "a row is a name and one signed amount"):** the sheet that opens from the header is titled "Your Balance". It opens with a balance block: the net label ("You owe", "You’re owed", or "Settled" at $0), the amount without a sign, and a trip-count line in the same style as the label ("Across 3 trips", counting only trips that aren't deleted). Rows are grouped under "You owe" and "Owes you", each a name and an unsigned amount. The header chip is the only place money is shown with a sign. No trip names on rows.
