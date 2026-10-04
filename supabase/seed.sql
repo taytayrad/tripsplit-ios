@@ -45,3 +45,48 @@ end;
 $$;
 
 grant execute on all functions in schema tests to anon, authenticated;
+
+-- Named people and trips for readable tests: tests.users('you', 'alex'), tests.id('alex').
+create table tests.names (k text primary key, id uuid not null, token text);
+grant all on tests.names to anon, authenticated;
+
+create or replace function tests.id(p_k text)
+returns uuid language sql stable as $$ select id from tests.names where k = p_k $$;
+
+create or replace function tests.users(variadic p_names text[])
+returns void language sql as $$
+  insert into tests.names (k, id) select k, tests.create_user(k) from unnest(p_names) k
+$$;
+
+-- A trip created by people[1]; the rest join in order (that order is member order).
+create or replace function tests.trip(p_k text, p_people text[], p_start date default null)
+returns uuid language plpgsql as $$
+declare
+  v_trip uuid;
+  v_token text;
+  p text;
+begin
+  perform tests.authenticate_as(tests.id(p_people[1]));
+  v_trip := public.create_trip(p_k, '{"shape":"circle","glyph":"house","ink":"green","rotation":0,"offsetX":0,"offsetY":0}',
+                               p_start, p_start + 3);
+  v_token := (select invite_token from public.trips where id = v_trip);
+  insert into tests.names (k, id, token) values (p_k, v_trip, v_token);
+  foreach p in array p_people[2:] loop
+    perform tests.authenticate_as(tests.id(p));
+    perform public.join_trip(v_token);
+  end loop;
+  return v_trip;
+end;
+$$;
+
+-- An expense paid by p_payer, split equally among p_people. Returns the expense id.
+create or replace function tests.equal(p_trip text, p_payer text, p_cents integer, p_people text[])
+returns uuid language plpgsql as $$
+begin
+  perform tests.authenticate_as(tests.id(p_payer));
+  return public.save_expense(tests.id(p_trip), null, 'Expense', 'general', p_cents, tests.id(p_payer), 'equal',
+    (select jsonb_agg(jsonb_build_object('user_id', tests.id(p), 'value', 1)) from unnest(p_people) p), current_date);
+end;
+$$;
+
+grant execute on all functions in schema tests to anon, authenticated;
