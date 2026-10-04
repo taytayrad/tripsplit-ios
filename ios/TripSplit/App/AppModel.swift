@@ -12,10 +12,14 @@ final class AppModel {
     var stage: Stage = .loading
     var profile: Profile?
     var trips: [Trip] = []
-    var nets: [UUID: Int] = [:]
-    var headerTotal = 0
-    /// People you share a trip with ("On TripSplit").
-    var people: [PersonName] = []
+    /// Your balance with each person on each trip. Every balance on screen comes from these rows.
+    var pairs: [PairBalance] = []
+    /// Payments on your trips, oldest first.
+    var payments: [Payment] = []
+    /// People you share a trip with ("On TripSplit"), with their pay methods.
+    var people: [Profile] = []
+    /// Your Balance, when it's open.
+    var showingBalance = false
     var pendingInvite: String? {
         didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite"); inviteErrorShown = false }
     }
@@ -61,7 +65,7 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []; expenses = []
+                profile = nil; trips = []; expenses = []; pairs = []; payments = []; people = []; showingBalance = false
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
@@ -146,27 +150,43 @@ final class AppModel {
             async let t: [Trip] = db.from("trips")
                 .select("*, trip_members(user_id, position, removed_at, profiles!trip_members_user_id_fkey(id, display_name))")
                 .is("deleted_at", value: nil).order("created_at", ascending: false).value()
-            async let n: [TripNet] = db.rpc("my_trip_nets").value()
-            async let h: Int = db.rpc("my_header_total").value()
-            async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
-            async let e: [Expense] = allExpenses()
-            (trips, nets, headerTotal, people, expenses) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p, e)
+            async let b: [PairBalance] = db.rpc("my_pair_balances").value()
+            async let p: [Profile] = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
+                .neq("id", value: userId ?? UUID()).value()
+            async let e: [Expense] = allPages { from, to in
+                self.db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
+                    .order("spent_on", ascending: false).order("created_at", ascending: false).order("id").range(from: from, to: to)
+            }
+            async let pay: [Payment] = allPages { from, to in
+                self.db.from("payments").select("id, trip_id, payer_id, payee_id, amount_cents, method, created_at")
+                    .is("deleted_at", value: nil).order("created_at").order("id").range(from: from, to: to)
+            }
+            (trips, pairs, people, expenses, payments) = try await (t, b, p, e, pay)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
         if realtime == nil, stage == .ready { await startRealtime() }
     }
 
-    /// Every expense you can see, newest first, in pages (the API caps a response at 1000 rows).
-    private func allExpenses() async throws -> [Expense] {
-        var all: [Expense] = []
-        let page = 1000
+    /// Every row of a query, in pages (the API caps a response at 1000 rows). The query must have a stable order.
+    private func allPages<T: Decodable & Sendable>(_ page: (Int, Int) -> PostgrestTransformBuilder) async throws -> [T] {
+        var all: [T] = []
+        let size = 1000
         while true {
-            let rows: [Expense] = try await db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
-                .order("spent_on", ascending: false).order("created_at", ascending: false).order("id")
-                .range(from: all.count, to: all.count + page - 1).value()
+            let rows: [T] = try await page(all.count, all.count + size - 1).value()
             all += rows
-            if rows.count < page { return all }
+            if rows.count < size { return all }
         }
+    }
+
+    var balance: BalanceSummary { BalanceSummary(pairs: pairs, name: name(of:)) }
+    /// The header chip: the sum of the Your Balance rows.
+    var headerTotal: Int { balance.total }
+    /// Your net on each trip.
+    var nets: [UUID: Int] { BalanceSummary.tripNets(pairs) }
+
+    func name(of user: UUID) -> String {
+        people.first { $0.id == user }?.displayName.nilIfEmpty
+            ?? trips.lazy.flatMap(\.tripMembers).first { $0.userId == user }?.profiles.displayName ?? "Someone"
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
@@ -228,6 +248,21 @@ final class AppModel {
 
     func deleteExpense(_ id: UUID) async throws {
         try await db.rpc("delete_expense", params: ["p_expense": id]).run()
+        await refresh()
+    }
+
+    // MARK: Payments
+
+    /// Logs a payment with `other`: `pay` when you paid them, `record` when they paid you. Retrying with the same
+    /// `requestId` creates nothing new.
+    func logPayment(with other: UUID, cents: Int, direction: LogPayment.Direction, method: PayMethod, requestId: UUID) async throws {
+        try await db.rpc("log_payment", params: LogPaymentArgs(p_other: other, p_amount_cents: cents,
+            p_direction: direction == .pay ? "pay" : "record", p_method: method.rawValue, p_request_id: requestId)).run()
+        await refresh()
+    }
+
+    func deletePayment(_ id: UUID) async throws {
+        try await db.rpc("delete_payment", params: ["p_payment": id]).run()
         await refresh()
     }
 
