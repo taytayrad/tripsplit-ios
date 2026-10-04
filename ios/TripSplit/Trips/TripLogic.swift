@@ -16,7 +16,9 @@ enum InviteLink {
     static let page = URL(string: "https://taytayrad.github.io/tripsplit-invite/join/")!
 
     static func shareURL(token: String, page: URL = page) -> URL {
-        URL(string: page.absoluteString + "#" + token)!
+        var c = URLComponents(url: page, resolvingAgainstBaseURL: false)!
+        c.fragment = token
+        return c.url!
     }
 
     /// The app URL the invite page opens.
@@ -28,7 +30,7 @@ enum InviteLink {
         let token: String?
         if url.scheme == "tripsplit" {
             token = url.host() == "join" ? parts.first : nil
-        } else if parts.last == "join" {
+        } else if url.scheme == "https", url.host() == page.host(), parts == page.pathComponents.filter({ $0 != "/" }) {
             token = url.fragment
         } else {
             token = nil

@@ -44,7 +44,7 @@
 </svg>
 </div>
 <h1>You're invited to a trip</h1>
-<p>Open TripSplit to join. New here? Get the app first, then tap the link again.</p>
+<p id="msg">Open TripSplit to join. New here? Get the app first, then tap the link again.</p>
 <a class="button primary" id="open" href="#">Open TripSplit</a>
 <a class="button secondary" href="https://apps.apple.com/">Get TripSplit</a>
 </main>
@@ -58,6 +58,7 @@
     location.href = app;
   } else {
     document.querySelector("h1").textContent = "Invite link not found";
+    document.getElementById("msg").textContent = "This link is missing part of its address. Ask for a new one.";
     document.getElementById("open").hidden = true;
   }
 </script>

@@ -30,6 +30,10 @@ struct TripLogicTests {
 
     static let token = "0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c"
 
+    @Test func theInvitePageIsTheOneWeDeploy() {
+        #expect(InviteLink.page.absoluteString == "https://taytayrad.github.io/tripsplit-invite/join/")
+    }
+
     @Test func shareURLPointsAtTheInvitePage() {
         let url = InviteLink.shareURL(token: Self.token, page: URL(string: "https://example.com/join/")!)
         #expect(url.absoluteString == "https://example.com/join/#\(Self.token)")
@@ -37,7 +41,7 @@ struct TripLogicTests {
 
     @Test(arguments: [
         "tripsplit://join/0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
-        "https://example.com/join/#0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
+        "https://taytayrad.github.io/tripsplit-invite/join/#0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
     ])
     func tokenFromLinks(_ link: String) {
         #expect(InviteLink.token(from: URL(string: link)!) == Self.token)
@@ -48,7 +52,9 @@ struct TripLogicTests {
         "tripsplit://join/not-a-token",
         "tripsplit://other/0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
         "https://example.com/something/#0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
-        "https://example.com/join/",
+        "https://taytayrad.github.io/tripsplit-invite/join/",
+        "https://example.com/join/#0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
+        "http://taytayrad.github.io/tripsplit-invite/join/#0f9b7c2a4d8e4f1a9b3c5d7e9f1a2b3c",
     ])
     func rejectsOtherLinks(_ link: String) {
         #expect(InviteLink.token(from: URL(string: link)!) == nil)
