@@ -66,7 +66,6 @@ struct PersonView: View {
     @State private var keep: Set<UUID> = []
     /// What you logged here, for "You paid $50 today".
     @State private var loggedHere: (cents: Int, direction: LogPayment.Direction)?
-    @State private var celebrate = false
     @State private var logging: LogContext?
     /// A pay app you opened; returning to TripSplit asks whether you paid (it logs nothing by itself).
     @State private var awaitingReturn: PayMethod?
@@ -104,7 +103,7 @@ struct PersonView: View {
         }
         .listSectionSpacing(.compact)
         .contentMargins(.top, 0, for: .scrollContent)
-        .overlay(alignment: .top) { if celebrate && ledger.total == 0 { Confetti() } }
+        .overlay(alignment: .top) { if loggedHere != nil && ledger.total == 0 { Confetti() } }  // settled by a payment here
         .safeAreaInset(edge: .bottom) { payBar(total: ledger.total) }
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
@@ -119,7 +118,6 @@ struct PersonView: View {
                             openTrips: openTrips(direction: context.direction)) { cents, trips in
                 keep.formUnion(trips)
                 loggedHere = (cents + (loggedHere?.direction == context.direction ? loggedHere?.cents ?? 0 : 0), context.direction)
-                if cents == abs(ledger.total) { celebrate = true }
             }
         }
         .alert("Delete this payment?", isPresented: .init(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { line in
