@@ -214,7 +214,10 @@ begin
   if p_amount_cents is null or p_amount_cents <= 0 then
     raise exception 'amount must be more than $0';
   end if;
-  if not private.is_active_member(p_trip, p_payer) then
+  -- The payer and the people in the split must be on the trip, except that someone already on this expense
+  -- (removed with "keep") stays a participant, so editing a title or date doesn't erase their share.
+  if not private.is_active_member(p_trip, p_payer)
+     and not exists (select 1 from public.expenses where id = v_expense and payer_id = p_payer) then
     raise exception 'the payer must be on the trip';
   end if;
   if p_split_kind not in ('equal', 'exact', 'percent', 'shares') then
@@ -227,7 +230,9 @@ begin
   select array_agg(x.user_id order by m.position), array_agg(x.value order by m.position)
     into v_users, v_values
   from jsonb_to_recordset(p_inputs) as x(user_id uuid, value numeric)
-  join public.trip_members m on m.trip_id = p_trip and m.user_id = x.user_id and m.removed_at is null
+  join public.trip_members m on m.trip_id = p_trip and m.user_id = x.user_id
+   and (m.removed_at is null
+        or exists (select 1 from public.expense_shares s where s.expense_id = v_expense and s.user_id = x.user_id))
   where x.value > 0;
   v_n := coalesce(array_length(v_users, 1), 0);
   if v_n <> v_given then
@@ -414,6 +419,12 @@ drop function if exists private.is_member_of_folder(text);
 -- has no policies, so nothing can read or write it. Remove it from the dashboard if it bothers you.
 alter table public.trips drop column if exists image_path;
 
--- Realtime: clients subscribe to their trips' rows and re-query on change. RLS still applies.
+-- Realtime: clients subscribe to their trips' rows and re-query on change. RLS applies to inserts and updates;
+-- DELETE events carry the old primary key to every subscriber, so hard-deleted tables (expenses, expense_shares)
+-- stay out of the publication. Every change to them writes an activity_events row, which is what clients watch.
 alter publication supabase_realtime add table
-  public.trips, public.trip_members, public.expenses, public.expense_shares, public.payments, public.activity_events;
+  public.trips, public.trip_members, public.payments, public.activity_events;
+
+-- A removed member can still read their own membership row, so the removal reaches them over realtime.
+create policy "trip_members: own row" on public.trip_members for select to authenticated
+  using (user_id = (select auth.uid()));

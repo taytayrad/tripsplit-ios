@@ -38,7 +38,14 @@ struct ExpenseFormView: View {
 
     private var editing: Expense? { if case .edit(let e) = target { e } else { nil } }
     private var trip: Trip? { app.trip(tripId) }
-    private var members: [Member] { trip?.members ?? [] }
+    /// Who can be in the split: active members, plus anyone already on this expense (removed with "keep"),
+    /// so editing a title or date doesn't drop their share.
+    private var members: [Member] {
+        guard let trip else { return [] }
+        var kept = Set(editing?.expenseShares.map(\.userId) ?? [])
+        if let payer = editing?.payerId { kept.insert(payer) }
+        return trip.tripMembers.filter { $0.removedAt == nil || kept.contains($0.userId) }.sorted { $0.position < $1.position }
+    }
     private var amountCents: Int { Money.cents(from: amountText) ?? 0 }
     private var footer: SplitFooter.Result { SplitFooter.evaluate(kind: splitKind, amountCents: amountCents, inputs: members.map { inputs[$0.userId] ?? 0 }) }
     private var canSave: Bool {
@@ -317,24 +324,27 @@ private struct DeleteExpenseAlert: ViewModifier {
 extension Money {
     /// "84.20" for a text field; "90" when whole.
     static func plain(_ cents: Int) -> String { cents % 100 == 0 ? "\(cents / 100)" : String(format: "%d.%02d", cents / 100, cents % 100) }
-    /// What the amount field keeps as you type (or paste): digits, one point, at most two decimals.
+
+    /// What the amount field keeps as you type (or paste): digits and one decimal point. A comma is the point
+    /// on decimal-comma keyboards, so it's kept as "."; nothing else gets in.
     static func cleanAmountInput(_ text: String) -> String {
         var out = ""; var seenPoint = false; var decimals = 0
         for c in text {
-            if c.isNumber { if seenPoint { guard decimals < 2 else { continue }; decimals += 1 }; out.append(c) }
-            else if c == ".", !seenPoint { seenPoint = true; out.append(c) }
+            if c.isASCII, c.isNumber { if seenPoint { guard decimals < 2 else { continue }; decimals += 1 }; out.append(c) }
+            else if c == "." || c == ",", !seenPoint { seenPoint = true; out.append(".") }
         }
         return out
     }
 
-    /// Cents from "$84.20", "84.2", "90"; nil when it isn't money or has more than two decimals.
+    /// Cents from "$84.20", "84,20", "84.2", "90". Nil for anything else: trailing text, two points, more than
+    /// two decimals, or $10,000,000 and up (amount_cents is a 32-bit integer).
     static func cents(from text: String) -> Int? {
-        let cleaned = text.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)
-        guard !cleaned.isEmpty, let value = Decimal(string: cleaned), value >= 0 else { return nil }
-        let scaled = value * 100
-        var rounded = Decimal(); var copy = scaled
-        NSDecimalRound(&rounded, &copy, 0, .plain)
-        guard rounded == scaled else { return nil }
-        return NSDecimalNumber(decimal: rounded).intValue
+        let t = text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard !t.isEmpty, t.allSatisfy({ ($0.isASCII && $0.isNumber) || $0 == "." }), t.filter({ $0 == "." }).count <= 1 else { return nil }
+        let parts = t.split(separator: ".", omittingEmptySubsequences: false)
+        let whole = String(parts[0]), frac = parts.count > 1 ? String(parts[1]) : ""
+        guard frac.count <= 2, whole.count <= 7, !(whole.isEmpty && frac.isEmpty) else { return nil }
+        guard let w = Int(whole.isEmpty ? "0" : whole), let f = Int(frac.isEmpty ? "0" : frac.padding(toLength: 2, withPad: "0", startingAt: 0)) else { return nil }
+        return w * 100 + f
     }
 }

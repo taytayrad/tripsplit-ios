@@ -81,7 +81,7 @@ struct SplitView: View {
                     if kind == .exact { Text("$") }
                     TextField(kind == .shares ? "1" : kind == .exact ? "0.00" : "0", text: .init(
                         get: { text[m.userId] ?? "" },
-                        set: { text[m.userId] = $0; inputs[m.userId] = parse($0) }))
+                        set: { let t = kind == .shares ? $0.filter(\.isNumber) : Money.cleanAmountInput($0); text[m.userId] = t; inputs[m.userId] = parse(t) }))
                         .keyboardType(kind == .shares ? .numberPad : .decimalPad)
                         .multilineTextAlignment(.trailing)
                         .focused($focused, equals: m.userId)

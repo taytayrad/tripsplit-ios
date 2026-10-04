@@ -1,7 +1,7 @@
 -- Fixes from the Phase 2 architectural review (prd.md › Prototype decisions › Removed members can't rejoin).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(13);
 
 create function pg_temp.net(who text, trip text) returns bigint language plpgsql as $$
 begin
@@ -51,6 +51,29 @@ select throws_ok(format('select public.delete_payment(%L)', (select id from publ
                  'P0001', 'this trip is deleted', 'delete_payment: refused on a deleted trip');
 select public.undelete_trip(tests.id('crP'));
 select is(pg_temp.net('youP', 'crP'), 0::bigint, 'undelete: the payment still counts, so the trip is back exactly');
+
+-- Editing an expense keeps a removed-with-keep member's share (they stay a participant of that expense).
+select tests.users('youK', 'alexK', 'jordanK');
+select tests.trip('crK', array['youK', 'alexK', 'jordanK']);
+create temp table t_k on commit drop as select tests.equal('crK', 'youK', 9000, array['youK', 'alexK', 'jordanK']) as id;
+grant select on t_k to authenticated;
+select tests.authenticate_as(tests.id('youK'));
+select public.remove_member(tests.id('crK'), tests.id('jordanK'), 'keep');
+select public.save_expense(tests.id('crK'), (select id from t_k), 'Renamed', 'general', 9000, tests.id('youK'), 'equal',
+  jsonb_build_array(jsonb_build_object('user_id', tests.id('youK'), 'value', 1), jsonb_build_object('user_id', tests.id('alexK'), 'value', 1),
+                    jsonb_build_object('user_id', tests.id('jordanK'), 'value', 1)), current_date);
+select is((select share_cents from public.expense_shares where expense_id = (select id from t_k) and user_id = tests.id('jordanK')), 3000,
+          'edit: a kept member''s share survives a rename');
+select is(pg_temp.net('jordanK', 'crK'), -3000::bigint, 'edit: and their kept debt is unchanged');
+select tests.authenticate_as(tests.id('youK'));
+select throws_ok(format('select public.save_expense(%L, null, %L, %L, 1000, %L, %L, %L, current_date)',
+                        tests.id('crK'), 'New', 'general', tests.id('youK'), 'equal',
+                        jsonb_build_array(jsonb_build_object('user_id', tests.id('jordanK'), 'value', 1))::text),
+                 'P0001', 'everyone in the split must be on the trip', 'new expense: a removed member still can''t be in it');
+-- A removed member can see their own membership row, so the removal reaches their phone over realtime.
+select tests.authenticate_as(tests.id('jordanK'));
+select is((select count(*) from public.trip_members where trip_id = tests.id('crK') and user_id = tests.id('jordanK'))::int, 1,
+          'policy: a removed member can read their own membership row');
 
 select * from finish();
 rollback;

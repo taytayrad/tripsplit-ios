@@ -149,12 +149,24 @@ final class AppModel {
             async let n: [TripNet] = db.rpc("my_trip_nets").value()
             async let h: Int = db.rpc("my_header_total").value()
             async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
-            async let e: [Expense] = db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
-                .order("spent_on", ascending: false).order("created_at", ascending: false).value()
+            async let e: [Expense] = allExpenses()
             (trips, nets, headerTotal, people, expenses) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p, e)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
         if realtime == nil, stage == .ready { await startRealtime() }
+    }
+
+    /// Every expense you can see, newest first, in pages (the API caps a response at 1000 rows).
+    private func allExpenses() async throws -> [Expense] {
+        var all: [Expense] = []
+        let page = 1000
+        while true {
+            let rows: [Expense] = try await db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
+                .order("spent_on", ascending: false).order("created_at", ascending: false).order("id")
+                .range(from: all.count, to: all.count + page - 1).value()
+            all += rows
+            if rows.count < page { return all }
+        }
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
@@ -166,7 +178,9 @@ final class AppModel {
     private func startRealtime() async {
         guard realtime == nil else { return }
         let channel = db.channel("changes")
-        for table in ["trips", "trip_members", "expenses", "expense_shares", "payments", "activity_events"] {
+        // Not expenses or expense_shares: their DELETE events would reach every subscriber. Every change to
+        // them writes an activity_events row, so that table is the signal.
+        for table in ["trips", "trip_members", "payments", "activity_events"] {
             realtimeSubscriptions.append(channel.onPostgresChange(AnyAction.self, schema: "public", table: table) { [weak self] _ in
                 Task { @MainActor in self?.scheduleRefresh() }
             })

@@ -16,9 +16,15 @@ struct ExpenseLogicTests {
         #expect(ExpenseIcon.pick(for: description) == expected)
     }
 
-    @Test(arguments: [("84.20", "84.20"), ("Costco84.20", "84.20"), ("1.2.3", "1.23"), ("5.999", "5.99"), ("$90", "90")])
+    @Test(arguments: [("84.20", "84.20"), ("Costco84.20", "84.20"), ("1.2.3", "1.23"), ("5.999", "5.99"), ("$90", "90"), ("84,20", "84.20")])
     func amountFieldKeepsOnlyMoney(_ typed: String, _ kept: String) {
         #expect(Money.cleanAmountInput(typed) == kept)
+    }
+
+    @Test(arguments: [("84.20", 8420), ("84,20", 8420), ("84.2", 8420), ("$90", 9000), (".5", 50), ("9999999.99", 999_999_999),
+                      ("84.20oops", nil), ("84.2.0", nil), ("84.205", nil), ("10000000", nil), ("", nil), ("٨٤", nil)])
+    func centsParseTheWholeInputOrNothing(_ text: String, _ cents: Int?) {
+        #expect(Money.cents(from: text) == cents)
     }
 
     @Test func addedLineUsesTodayOrTheDate() {

@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct TripSplitApp: App {
     @State private var app = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -10,6 +11,9 @@ struct TripSplitApp: App {
                 .environment(app)
                 .task { await app.start() }
                 .onOpenURL { url in Task { await app.open(url) } }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active, app.stage == .ready { Task { await app.refresh() } }
+                }
         }
     }
 }
