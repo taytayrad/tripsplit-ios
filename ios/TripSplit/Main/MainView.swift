@@ -12,6 +12,7 @@ struct MainView: View {
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
         .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
+        .sheet(isPresented: $app.showingBalance) { YourBalanceView() }
     }
 }
 
@@ -31,7 +32,9 @@ struct MainHeader: ToolbarContent {
         }
     }
 
-    private var chip: some View { BalanceChip(cents: app.headerTotal) }  // Phase 4 makes it open Your Balance
+    private var chip: some View {
+        Button { app.showingBalance = true } label: { BalanceChip(cents: app.headerTotal) }.buttonStyle(.plain)
+    }
 
     private var add: some View {
         AddButton(onAddTrip: onAddTrip)
