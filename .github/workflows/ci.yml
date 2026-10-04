@@ -30,4 +30,5 @@ jobs:
         with:
           version: latest
       - run: supabase db start
+      - run: supabase db reset  # applies migrations, then seed.sql (test helpers)
       - run: supabase test db
