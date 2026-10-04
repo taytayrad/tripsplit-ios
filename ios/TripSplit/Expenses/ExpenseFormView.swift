@@ -24,6 +24,7 @@ struct ExpenseFormView: View {
     @State private var saving = false
     @State private var deleting: Expense?
     @State private var error: String?
+    @State private var loaded = false  // onAppear fires again when Paid by or Split pops; fill the form once
 
     init(target: ExpenseSheet) {
         self.target = target
@@ -81,7 +82,7 @@ struct ExpenseFormView: View {
                     Section {
                         Button("Delete expense", role: .destructive) { deleting = expense }
                     } footer: {
-                        Text("Added by \(expense.createdBy == app.userId ? "you" : name(of: expense.createdBy)) · \(expense.createdAt.formatted(.dateTime.month().day().hour().minute()))")
+                        Text("Added by \(expense.createdBy == app.userId ? "you" : name(of: expense.createdBy)) · \(ExpenseLine.when(expense.createdAt))")
                     }
                 }
             }
@@ -113,6 +114,8 @@ struct ExpenseFormView: View {
     }
 
     private func load() {
+        guard !loaded else { return }
+        loaded = true
         if let e = editing {
             description = e.description; icon = e.icon; iconOverridden = e.icon != ExpenseIcon.pick(for: e.description)
             amountText = Money.plain(e.amountCents); payer = e.payerId; splitKind = e.splitKind; date = e.date

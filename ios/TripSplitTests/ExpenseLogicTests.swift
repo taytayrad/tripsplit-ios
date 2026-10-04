@@ -4,15 +4,23 @@ import Testing
 
 /// The expense form's pure rules: the keyword icon, your line on an expense row, the split footer, the default trip.
 struct ExpenseLogicTests {
+    static func day(_ s: String) -> Date { ISO8601DateFormatter().date(from: s + "T12:00:00Z")! }
     // PRD › Build decisions › Expense icon: keyword match to the starter icons; anything else is general.
     @Test(arguments: [
         ("Costco", ExpenseIcon.groceries), ("Dinner at Nobu", .restaurant), ("Morning coffee", .coffee),
         ("Beers at the brewery", .drinks), ("Gas", .gas), ("Uber to the airport", .rideshare),
         ("Flight home", .flight), ("Airbnb", .lodging), ("Concert tickets", .tickets), ("Souvenirs", .shopping),
-        ("Misc", .general), ("", .general),
+        ("Misc", .general), ("", .general), ("Barbecue supplies", .restaurant), ("Bargain bin", .general), ("Bar tab", .drinks),
     ])
     func keywordPicksTheIcon(_ description: String, _ expected: ExpenseIcon) {
         #expect(ExpenseIcon.pick(for: description) == expected)
+    }
+
+    @Test func addedLineUsesTodayOrTheDate() {
+        let cal = Calendar(identifier: .gregorian)
+        let now = Self.day("2026-10-04")
+        #expect(ExpenseLine.when(now, now: now, calendar: cal).hasPrefix("Today, "))
+        #expect(ExpenseLine.when(Self.day("2026-10-03"), now: now, calendar: cal).hasPrefix("Oct 3, "))
     }
 
     // PRD › Trips: each expense shows only your part, no leading minus.

@@ -17,8 +17,10 @@ final class AppModel {
     /// People you share a trip with ("On TripSplit").
     var people: [PersonName] = []
     var pendingInvite: String? {
-        didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite") }
+        didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite"); inviteErrorShown = false }
     }
+    /// A join that keeps failing the same way (trip full, offline) alerts once, not on every background refresh.
+    private var inviteErrorShown = false
     var invitePreview: InvitePreview?
     /// Set after joining by link; drives the welcome modal.
     var welcomeTrip: Trip?
@@ -152,6 +154,7 @@ final class AppModel {
             (trips, nets, headerTotal, people, expenses) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p, e)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
+        if realtime == nil, stage == .ready { await startRealtime() }
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
@@ -168,11 +171,19 @@ final class AppModel {
                 Task { @MainActor in self?.scheduleRefresh() }
             })
         }
-        realtime = channel
-        do { try await channel.subscribeWithError() } catch { print("realtime subscribe failed:", error) }
+        do {
+            try await channel.subscribeWithError()
+            realtime = channel
+        } catch {
+            // Nil means the next refresh (pull, foreground) subscribes again.
+            realtimeSubscriptions = []
+            await db.removeChannel(channel)
+            self.error = Self.describe("Live updates are off. Pull to refresh.", error)
+        }
     }
 
     private func stopRealtime() async {
+        refreshTask?.cancel(); refreshTask = nil
         if let realtime { await db.removeChannel(realtime) }
         realtime = nil; realtimeSubscriptions = []
     }
@@ -268,8 +279,14 @@ final class AppModel {
             pendingInvite = nil
             self.error = "You were removed from that trip. Ask a member to add you back."
         } catch {
-            // Offline or a full trip: keep the token so pull-to-refresh retries the join.
-            self.error = Self.describe("Couldn't join the trip yet. Pull to retry.", error)
+            // Keep the token so pull-to-refresh retries the join; say why once.
+            guard !inviteErrorShown else { return }
+            inviteErrorShown = true
+            if let e = error as? PostgrestError, e.message.contains("at most 20 members") {
+                self.error = "That trip is full (20 people). Once someone leaves, pull to retry."
+            } else {
+                self.error = Self.describe("Couldn't join the trip yet. Pull to retry.", error)
+            }
         }
     }
 }

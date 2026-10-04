@@ -22,28 +22,38 @@ enum ExpenseIcon: String, CaseIterable, Codable, Sendable {
 
     var title: String { rawValue.capitalized }
 
+    /// Whole words, so "barbecue" isn't drinks and "bargain" isn't a bar. Multi-word entries match the phrase.
     private static let keywords: [(ExpenseIcon, [String])] = [
-        (.groceries, ["grocer", "costco", "market", "trader joe", "whole foods", "safeway", "walmart", "aldi", "kroger"]),
-        (.coffee, ["coffee", "latte", "starbucks", "cafe", "café", "espresso"]),
-        (.drinks, ["drink", "beer", "wine", "cocktail", "brewery", "bar ", "bar"]),
-        (.restaurant, ["dinner", "lunch", "breakfast", "brunch", "restaurant", "pizza", "taco", "sushi", "burger", "food", "snack"]),
+        (.groceries, ["grocery", "groceries", "costco", "market", "supermarket", "trader joe's", "trader joes", "whole foods", "safeway", "walmart", "aldi", "kroger"]),
+        (.coffee, ["coffee", "coffees", "latte", "lattes", "starbucks", "cafe", "café", "espresso"]),
+        (.drinks, ["drink", "drinks", "beer", "beers", "wine", "cocktail", "cocktails", "brewery", "bar", "bars", "pub"]),
+        (.restaurant, ["dinner", "lunch", "breakfast", "brunch", "restaurant", "pizza", "taco", "tacos", "sushi", "burger", "burgers", "food", "snack", "snacks", "bbq", "barbecue"]),
         (.gas, ["gas", "fuel", "shell", "chevron"]),
-        (.rideshare, ["uber", "lyft", "taxi", "cab", "ride", "parking", "toll"]),
-        (.flight, ["flight", "airline", "plane", "delta", "united", "southwest", "jetblue"]),
+        (.rideshare, ["uber", "lyft", "taxi", "cab", "ride", "rides", "parking", "toll", "tolls"]),
+        (.flight, ["flight", "flights", "airline", "plane", "delta", "united", "southwest", "jetblue"]),
         (.lodging, ["airbnb", "hotel", "vrbo", "cabin", "lodge", "motel", "hostel", "rent", "resort"]),
-        (.tickets, ["ticket", "concert", "museum", "park", "show", "game", "tour", "pass"]),
-        (.shopping, ["shop", "store", "amazon", "souvenir", "gift"]),
+        (.tickets, ["ticket", "tickets", "concert", "museum", "park", "show", "game", "tour", "pass", "passes"]),
+        (.shopping, ["shop", "shopping", "store", "amazon", "souvenir", "souvenirs", "gift", "gifts"]),
     ]
 
     /// The icon the description picks. Tapping the icon overrides it, and the override then stays put.
     static func pick(for description: String) -> ExpenseIcon {
         let text = description.lowercased()
-        return keywords.first { _, words in words.contains { text.contains($0) } }?.0 ?? .general
+        let words = Set(text.split { !$0.isLetter && $0 != "'" }.map(String.init))
+        return keywords.first { _, keys in
+            keys.contains { $0.contains(" ") ? text.contains($0) : words.contains($0) }
+        }?.0 ?? .general
     }
 }
 
 /// Your line on an expense row: only your part, never a minus (PRD › Trips).
 enum ExpenseLine {
+    /// "Today, 9:41 AM", or "Oct 3, 10:13 PM" for earlier days (the Activity rule).
+    static func when(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
+        let time = date.formatted(.dateTime.hour().minute())
+        return calendar.isDate(date, inSameDayAs: now) ? "Today, \(time)" : "\(date.formatted(.dateTime.month(.abbreviated).day())), \(time)"
+    }
+
     static func text(amountCents: Int, youPaid: Bool, yourShareCents: Int?) -> String? {
         let share = yourShareCents ?? 0
         if youPaid {

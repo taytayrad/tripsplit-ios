@@ -40,6 +40,35 @@ $$;
 
 grant execute on function public.add_member(uuid, uuid) to authenticated;
 grant execute on function public.invite_preview(text) to anon, authenticated;
+
+-- Trip photos live at trip-photos/<trip_id>/<file>. Active members of that trip can read and write.
+insert into storage.buckets (id, name, public) values ('trip-photos', 'trip-photos', false)
+on conflict (id) do nothing;
+
+create function private.is_member_of_folder(p_object_name text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return private.is_active_member(split_part(p_object_name, '/', 1)::uuid, auth.uid());
+exception when invalid_text_representation then
+  return false;
+end;
+$$;
+grant execute on function private.is_member_of_folder(text) to authenticated;
+
+create policy "trip photos: members read" on storage.objects for select to authenticated
+  using (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
+create policy "trip photos: members upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
+create policy "trip photos: members replace" on storage.objects for update to authenticated
+  using (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
+create policy "trip photos: members delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
+
 -- Profiles: anyone you've ever shared a trip with, removed or not. A removed member's name still shows on
 -- the trip, and with "keep" they still settle up, so both sides need each other's name and pay methods.
 create or replace function private.shares_a_trip(p_a uuid, p_b uuid)
