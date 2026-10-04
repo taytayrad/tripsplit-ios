@@ -151,6 +151,9 @@ final class AppModel {
                 .select("*, trip_members(user_id, position, removed_at, profiles!trip_members_user_id_fkey(id, display_name))")
                 .is("deleted_at", value: nil).order("created_at", ascending: false).value()
             async let b: [PairBalance] = db.rpc("my_pair_balances").value()
+            // Your own row too: onboarding and Profile change your pay methods, which the pay bar reads.
+            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
+                .eq("id", value: userId ?? UUID()).single().value()
             async let p: [Profile] = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
                 .neq("id", value: userId ?? UUID()).value()
             async let e: [Expense] = allPages { from, to in
@@ -161,7 +164,7 @@ final class AppModel {
                 self.db.from("payments").select("id, trip_id, payer_id, payee_id, amount_cents, method, created_at")
                     .is("deleted_at", value: nil).order("created_at").order("id").range(from: from, to: to)
             }
-            (trips, pairs, people, expenses, payments) = try await (t, b, p, e, pay)
+            (trips, pairs, profile, people, expenses, payments) = try await (t, b, me, p, e, pay)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
         if realtime == nil, stage == .ready { await startRealtime() }
@@ -255,10 +258,12 @@ final class AppModel {
 
     /// Logs a payment with `other`: `pay` when you paid them, `record` when they paid you. Retrying with the same
     /// `requestId` creates nothing new.
-    func logPayment(with other: UUID, cents: Int, direction: LogPayment.Direction, method: PayMethod, requestId: UUID) async throws {
-        try await db.rpc("log_payment", params: LogPaymentArgs(p_other: other, p_amount_cents: cents,
-            p_direction: direction == .pay ? "pay" : "record", p_method: method.rawValue, p_request_id: requestId)).run()
+    /// Returns the rows the server stored (the original ones on a retry), one per trip touched.
+    func logPayment(with other: UUID, cents: Int, direction: LogPayment.Direction, method: PayMethod, requestId: UUID) async throws -> [LoggedPayment] {
+        let rows: [LoggedPayment] = try await db.rpc("log_payment", params: LogPaymentArgs(p_other: other, p_amount_cents: cents,
+            p_direction: direction == .pay ? "pay" : "record", p_method: method.rawValue, p_request_id: requestId)).value()
         await refresh()
+        return rows
     }
 
     func deletePayment(_ id: UUID) async throws {

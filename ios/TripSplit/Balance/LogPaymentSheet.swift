@@ -10,8 +10,8 @@ struct LogPaymentSheet: View {
     /// The combined balance in this direction: the most that can be logged.
     let max: Int
     let openTrips: [Allocation.OpenTrip]
-    /// Called after logging, with the amount and the trips it went to.
-    let onLogged: (Int, Set<UUID>) -> Void
+    /// Called after logging, with the rows the server stored.
+    let onLogged: ([LoggedPayment]) -> Void
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -54,20 +54,25 @@ struct LogPaymentSheet: View {
             .frame(height: 56)
             .accessibilityLabel("Amount")
             Group {
-                if let problem, cents != nil { Text(problem).foregroundStyle(Color.tsOwe) }
+                if let problem { Text(problem).foregroundStyle((cents ?? 0) > 0 ? Color.tsOwe : Color.tsSecondary) }
                 else if let note = parts.flatMap(Allocation.note) { Text(note) }
                 else { Text(how) }
             }
             .font(.footnote).foregroundStyle(Color.tsSecondary).multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             if let error { Text(error).font(.footnote).foregroundStyle(Color.tsOwe).multilineTextAlignment(.center) }
-            Button { Task { await log() } } label: {
-                if saving { ProgressView().tint(.white) } else { Text(error == nil ? "Log \(Money.string(cents ?? 0)) payment" : "Retry") }
+            Button {
+                guard !saving else { return }
+                saving = true  // before the task, so a second tap can't start a second log
+                Task { await log() }
+            } label: {
+                if saving { ProgressView().tint(.white) }
+                else { Text(error != nil ? "Retry" : (cents ?? 0) > 0 ? "Log \(Money.string(cents ?? 0)) payment" : "Log payment") }
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(problem != nil || saving)
             .padding(.top, Spacing.md)
-            Button("Not yet") { dismiss() }.foregroundStyle(Color.tsTintFill).frame(minHeight: 44)
+            Button("Not yet") { dismiss() }.foregroundStyle(Color.tsTintFill).frame(minHeight: 44).disabled(saving)
         }
         .padding(.horizontal, Spacing.lg)
         .presentationDetents([.medium])
@@ -77,12 +82,12 @@ struct LogPaymentSheet: View {
     }
 
     private func log() async {
-        guard let cents else { return }
-        saving = true; error = nil
         defer { saving = false }
+        guard let cents else { return }
+        error = nil
         do {
-            try await app.logPayment(with: otherId, cents: cents, direction: context.direction, method: context.method, requestId: context.id)
-            onLogged(cents, Set((parts ?? []).map(\.tripId)))
+            let rows = try await app.logPayment(with: otherId, cents: cents, direction: context.direction, method: context.method, requestId: context.id)
+            onLogged(rows)
             dismiss()
         } catch let e as PostgrestError where e.message.contains("more than what is owed") || e.message.contains("nothing is owed") {
             await app.refresh()

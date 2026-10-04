@@ -137,6 +137,18 @@ struct SettlingTests {
         #expect(ledger.openTripCount == 1)
     }
 
+    // A member removed with keep can't read the trip, but its pair rows and their own payments still arrive.
+    @Test func aTripYouCantReadStillShowsItsBalanceAndPayments() {
+        let gone = UUID()
+        let paid = Payment(id: UUID(), tripId: gone, payerId: Self.you, payeeId: Self.alex, amountCents: 1000, method: .cash, createdAt: Self.day("2026-10-02"))
+        let ledger = PersonLedger(me: Self.you, other: Self.alex, otherName: "Alex", tripsNewestFirst: [], expenses: [],
+                                  payments: [paid], pairs: [PairBalance(tripId: gone, otherUserId: Self.alex, cents: -2000)])
+        #expect(ledger.groups.map(\.id) == [gone])
+        #expect(ledger.groups[0].name == PersonLedger.unreadableTripName)
+        #expect(ledger.groups[0].net == -2000)
+        #expect(ledger.groups[0].lines.map(\.title) == ["You paid · Cash"])
+    }
+
     // MARK: Pay bar
 
     static func profile(_ id: UUID, venmo: String? = nil, zelle: Bool = false, appleCash: Bool = false) -> Profile {
@@ -164,8 +176,8 @@ struct SettlingTests {
     // MARK: Allocation (A1–A5)
 
     // You owe Jordan: Lake House (Sep 12) $30, Coast Road (Oct 3) $60.
-    static let lh = Allocation.OpenTrip(id: UUID(), name: "Lake House", owed: 3000, start: day("2026-09-12"), created: day("2026-09-01"))
-    static let cr = Allocation.OpenTrip(id: UUID(), name: "Coast Road", owed: 6000, start: day("2026-10-03"), created: day("2026-08-01"))
+    static let lh = Allocation.OpenTrip(id: UUID(), name: "Lake House", owed: 3000, startDay: "2026-09-12", created: day("2026-09-01"))
+    static let cr = Allocation.OpenTrip(id: UUID(), name: "Coast Road", owed: 6000, startDay: "2026-10-03", created: day("2026-08-01"))
 
     @Test func a1PayingEverythingPaysOffBothOldestFirst() {
         let parts = Allocation.plan(9000, across: [Self.cr, Self.lh])
@@ -193,18 +205,27 @@ struct SettlingTests {
     }
 
     @Test func a5RecordingTheWholeSingleTripBalance() {
-        let one = Allocation.OpenTrip(id: UUID(), name: "Coast Road", owed: 2806, start: nil, created: Self.day("2026-10-03"))
+        let one = Allocation.OpenTrip(id: UUID(), name: "Coast Road", owed: 2806, startDay: nil, created: Self.day("2026-10-03"))
         #expect(Allocation.plan(2806, across: [one])?.map(\.cents) == [2806])
     }
 
     // Trips without dates sort by when they were created (money-rules › Allocation).
     @Test func tripsWithoutDatesSortByCreatedDate() {
-        let undated = Allocation.OpenTrip(id: UUID(), name: "Night Market", owed: 1000, start: nil, created: Self.day("2026-09-01"))
+        let undated = Allocation.OpenTrip(id: UUID(), name: "Night Market", owed: 1000, startDay: nil, created: Self.day("2026-09-01"))
         #expect(Allocation.plan(4000, across: [Self.lh, undated])?.map(\.name) == ["Night Market", "Lake House"])
     }
 
+    // log_payment orders by coalesce(start_date, created_at::date), created_at, with the date in UTC. A trip
+    // created at 8:30 PM Pacific on Sep 11 is Sep 12 in UTC: it ties with a trip starting Sep 12, and the tie goes
+    // to the trip created first.
+    @Test func undatedTripsUseTheUTCDateOfCreationLikeTheServer() {
+        let evening = Allocation.OpenTrip(id: UUID(), name: "Night Market", owed: 1000, startDay: nil,
+                                          created: ISO8601DateFormatter().date(from: "2026-09-12T03:30:00Z")!)
+        #expect(Allocation.plan(4000, across: [evening, Self.lh])?.map(\.name) == ["Lake House", "Night Market"])
+    }
+
     @Test func threeTripsListEveryOneItPaysOff() {
-        let undated = Allocation.OpenTrip(id: UUID(), name: "Night Market", owed: 1000, start: nil, created: Self.day("2026-09-01"))
+        let undated = Allocation.OpenTrip(id: UUID(), name: "Night Market", owed: 1000, startDay: nil, created: Self.day("2026-09-01"))
         let parts = Allocation.plan(5000, across: [Self.cr, Self.lh, undated]) ?? []
         #expect(Allocation.note(parts) == "Pays off Night Market ($10) and Lake House ($30) first, then $10 toward Coast Road.")
     }
@@ -216,5 +237,6 @@ struct SettlingTests {
         #expect(LogPayment.problem(cents: 3000, max: 2806, direction: .record, otherName: "Alex") == "That’s more than the $28.06 Alex owes you.")
         #expect(LogPayment.problem(cents: 9000, max: 9000, direction: .pay, otherName: "Jordan") == nil)
         #expect(LogPayment.problem(cents: nil, max: 9000, direction: .pay, otherName: "Jordan") == "Enter an amount.")
+        #expect(LogPayment.problem(cents: 0, max: 9000, direction: .pay, otherName: "Jordan") == "Enter an amount.")
     }
 }

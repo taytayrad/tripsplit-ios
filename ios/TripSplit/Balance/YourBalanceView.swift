@@ -64,8 +64,9 @@ struct PersonView: View {
     @State private var showSettled = false
     /// Trips a payment here just settled; they stay visible until the screen next opens.
     @State private var keep: Set<UUID> = []
-    /// What you logged here, for "You paid $50 today".
-    @State private var loggedHere: (cents: Int, direction: LogPayment.Direction)?
+    /// Payments logged here, for "You paid $50 today" and the confetti. Read back from `app.payments`, so a
+    /// delete on either phone takes them away.
+    @State private var loggedIds: Set<UUID> = []
     @State private var logging: LogContext?
     /// A pay app you opened; returning to TripSplit asks whether you paid (it logs nothing by itself).
     @State private var awaitingReturn: PayMethod?
@@ -103,7 +104,7 @@ struct PersonView: View {
         }
         .listSectionSpacing(.compact)
         .contentMargins(.top, 0, for: .scrollContent)
-        .overlay(alignment: .top) { if loggedHere != nil && ledger.total == 0 { Confetti() } }  // settled by a payment here
+        .overlay(alignment: .top) { if !loggedHere.isEmpty && ledger.total == 0 { Confetti() } }  // settled by a payment here
         .safeAreaInset(edge: .bottom) { payBar(total: ledger.total) }
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
@@ -115,9 +116,9 @@ struct PersonView: View {
         }
         .sheet(item: $logging) { context in
             LogPaymentSheet(context: context, otherId: personId, otherName: name, max: abs(ledger.total),
-                            openTrips: openTrips(direction: context.direction)) { cents, trips in
-                keep.formUnion(trips)
-                loggedHere = (cents + (loggedHere?.direction == context.direction ? loggedHere?.cents ?? 0 : 0), context.direction)
+                            openTrips: openTrips(direction: context.direction)) { rows in
+                keep.formUnion(rows.map(\.tripId))
+                loggedIds.formUnion(rows.map(\.paymentId))
             }
         }
         .alert("Delete this payment?", isPresented: .init(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), presenting: deleting) { line in
@@ -131,25 +132,29 @@ struct PersonView: View {
         } message: { _ in Text("It comes off your balance with \(name). Either of you can delete a payment.") }
     }
 
+    private var loggedHere: [Payment] { app.payments.filter { loggedIds.contains($0.id) } }
+
     private func label(_ total: Int) -> String {
         total < 0 ? "You owe \(name)" : total > 0 ? "\(name) owes you" : "Settled"
     }
 
     private func detail(_ ledger: PersonLedger) -> String? {
         if ledger.total == 0 { return ledger.groups.isEmpty ? nil : "You and \(name) are settled" }
-        if let logged = loggedHere {
-            return logged.direction == .pay ? "You paid \(Money.string(logged.cents)) today" : "\(name) paid you \(Money.string(logged.cents)) today"
+        if let first = loggedHere.first {
+            let cents = loggedHere.reduce(0) { $0 + $1.amountCents }
+            return first.payerId == app.userId ? "You paid \(Money.string(cents)) today" : "\(name) paid you \(Money.string(cents)) today"
         }
         return ledger.openTripCount > 1 ? "Across \(ledger.openTripCount) trips" : nil
     }
 
-    /// The trips a payment in this direction can go to, with what's open on each.
+    /// The trips a payment in this direction can go to, with what's open on each. Empty (so the sheet shows no
+    /// allocation note) when one of them is a trip you can't read: its order can't be known here.
     private func openTrips(direction: LogPayment.Direction) -> [Allocation.OpenTrip] {
-        app.pairs.filter { $0.otherUserId == personId && (direction == .pay ? $0.cents < 0 : $0.cents > 0) }.map { pair in
-            let trip = app.trip(pair.tripId)
-            return Allocation.OpenTrip(id: pair.tripId, name: trip?.name ?? "another trip", owed: abs(pair.cents),
-                                       start: trip?.start, created: trip?.createdAt ?? .distantPast)
+        let open = app.pairs.filter { $0.otherUserId == personId && (direction == .pay ? $0.cents < 0 : $0.cents > 0) }
+        let trips = open.compactMap { pair in
+            app.trip(pair.tripId).map { Allocation.OpenTrip(id: $0.id, name: $0.name, owed: abs(pair.cents), startDay: $0.startDate, created: $0.createdAt) }
         }
+        return trips.count == open.count ? trips : []
     }
 
     @ViewBuilder private func payBar(total: Int) -> some View {

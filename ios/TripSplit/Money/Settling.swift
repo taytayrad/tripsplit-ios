@@ -53,24 +53,32 @@ struct PersonLedger {
     /// Trips you still have a balance on with this person.
     let openTripCount: Int
 
+    /// A trip whose pair rows or payments reach you but whose row you can't read: you were removed with keep.
+    static let unreadableTripName = "A trip you were removed from"
+
     init(me: UUID, other: UUID, otherName: String, tripsNewestFirst: [Trip], expenses: [Expense], payments: [Payment], pairs: [PairBalance]) {
         let mine = pairs.filter { $0.otherUserId == other }
         let nets = BalanceSummary.tripNets(mine)
         total = mine.reduce(0) { $0 + $1.cents }
         openTripCount = Set(mine.filter { $0.cents != 0 }.map(\.tripId)).count
-        groups = tripsNewestFirst.filter { trip in trip.tripMembers.contains { $0.userId == other } }.compactMap { trip in
-            let charges: [Line] = expenses.filter { $0.tripId == trip.id }.sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }.compactMap { e in
+        let between = payments.filter { Set([$0.payerId, $0.payeeId]) == Set([me, other]) }.sorted { $0.createdAt < $1.createdAt }
+        func group(_ tripId: UUID, _ name: String) -> Group? {
+            let charges: [Line] = expenses.filter { $0.tripId == tripId }.sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }.compactMap { e in
                 let cents = e.payerId == me ? e.share(of: other) ?? 0 : e.payerId == other ? -(e.share(of: me) ?? 0) : 0
                 return cents == 0 ? nil : Line(id: e.id, title: e.description, cents: cents, isPayment: false, effect: cents)
             }
-            let paid: [Line] = payments.filter { $0.tripId == trip.id && Set([$0.payerId, $0.payeeId]) == Set([me, other]) }
-                .sorted { $0.createdAt < $1.createdAt }.map { p in
-                    let title = (p.payerId == me ? "You paid" : "\(otherName) paid you") + (p.method.title.map { " · \($0)" } ?? "")
-                    return Line(id: p.id, title: title, cents: p.amountCents, isPayment: true, effect: p.payerId == me ? p.amountCents : -p.amountCents)
-                }
-            let net = nets[trip.id] ?? 0
-            return charges.isEmpty && paid.isEmpty && net == 0 ? nil : Group(id: trip.id, name: trip.name, net: net, lines: charges + paid)
+            let paid: [Line] = between.filter { $0.tripId == tripId }.map { p in
+                let title = (p.payerId == me ? "You paid" : "\(otherName) paid you") + (p.method.title.map { " · \($0)" } ?? "")
+                return Line(id: p.id, title: title, cents: p.amountCents, isPayment: true, effect: p.payerId == me ? p.amountCents : -p.amountCents)
+            }
+            let net = nets[tripId] ?? 0
+            return charges.isEmpty && paid.isEmpty && net == 0 ? nil : Group(id: tripId, name: name, net: net, lines: charges + paid)
         }
+        let known = Set(tripsNewestFirst.map(\.id))
+        var unreadable: [UUID] = []
+        for id in mine.map(\.tripId) + between.map(\.tripId) where !known.contains(id) && !unreadable.contains(id) { unreadable.append(id) }
+        groups = tripsNewestFirst.filter { trip in trip.tripMembers.contains { $0.userId == other } }.compactMap { group($0.id, $0.name) }
+            + unreadable.compactMap { group($0, Self.unreadableTripName) }
     }
 
     /// Settled trips hide behind "Show settled trips", except ones that just reached $0 here (`keep`).
@@ -101,14 +109,17 @@ enum PayBar {
 /// Where a logged amount goes: the trips you owe on (or are owed on), oldest first, each filled before the next.
 /// A preview for the log sheet's note; `log_payment` does the real allocation the same way.
 enum Allocation {
-    struct OpenTrip: Equatable { let id: UUID; let name: String; let owed: Int; let start: Date?; let created: Date }
+    /// `startDay` is the trip's `start_date` ("yyyy-MM-dd"), so it sorts the way `log_payment` does.
+    struct OpenTrip: Equatable { let id: UUID; let name: String; let owed: Int; let startDay: String?; let created: Date }
     struct Part: Equatable { let tripId: UUID; let name: String; let cents: Int; let paysOff: Bool }
 
     /// Nil when the amount is $0 or more than everything owed (no overpaying).
     static func plan(_ cents: Int, across trips: [OpenTrip]) -> [Part]? {
         guard cents > 0, cents <= trips.reduce(0, { $0 + $1.owed }) else { return nil }
         var left = cents
-        return trips.sorted { ($0.start ?? $0.created, $0.created) < ($1.start ?? $1.created, $1.created) }.compactMap { trip in
+        // log_payment: order by coalesce(start_date, created_at::date), created_at (the date in UTC).
+        func key(_ t: OpenTrip) -> (String, Date) { (t.startDay ?? DayFormat.utcString(t.created), t.created) }
+        return trips.sorted { key($0) < key($1) }.compactMap { trip in
             guard left > 0 else { return nil }
             let take = min(left, trip.owed)
             left -= take

@@ -74,6 +74,14 @@ enum PayMethod: String, Codable, Sendable {
     }
 }
 
+/// A row `log_payment` returns: one per trip the payment touched.
+struct LoggedPayment: Decodable, Sendable {
+    let paymentId: UUID
+    let tripId: UUID
+    let amountCents: Int
+    enum CodingKeys: String, CodingKey { case paymentId = "payment_id", tripId = "trip_id", amountCents = "amount_cents" }
+}
+
 struct Payment: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     let tripId: UUID
@@ -105,6 +113,17 @@ enum DayFormat {
     }()
     static func parse(_ s: String) -> Date? { formatter.date(from: s) }
     static func string(_ d: Date) -> String { formatter.string(from: d) }
+
+    private static let utc: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    /// The day a timestamp falls on in UTC, the way Postgres casts `created_at::date` on Supabase.
+    static func utcString(_ d: Date) -> String { utc.string(from: d) }
 
     /// "Oct 3 – 6", or "Oct 28 – Nov 2".
     static func range(_ start: Date, _ end: Date) -> String {
