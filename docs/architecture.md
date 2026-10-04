@@ -42,7 +42,7 @@ flowchart TB
         fnPush["Edge function: push (Phase 5, not built yet)<br/>activity event → APNs"]
     end
 
-    invitePage["Static invite page (GitHub Pages)<br/>site/join/ redirect"]
+    invitePage["Static invite page (GitHub Pages)<br/>site/join/: opens the app, or Get TripSplit button"]
 
     apns["APNs"]
     store["App Store"]

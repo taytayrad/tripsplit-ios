@@ -222,7 +222,7 @@ These resolve conflicts and Open items above. Where this section and an earlier 
 - **Expense date:** defaults to today and can be changed.
 - **Invite link:** joins the trip immediately. Someone already on the trip just opens it.
 - **After create:** the trip opens on Add members, which can be skipped.
-- **Links:** Apple Developer account, no domain yet. A Supabase-hosted redirect page stands in for Universal Links. After installing from the App Store, a new user may need to tap the link a second time.
+- **Links:** Apple Developer account, no domain yet. A static page on GitHub Pages (`site/join/`, token in the URL fragment) stands in for Universal Links: it opens the app, or shows a Get TripSplit button when it isn't installed. After installing from the App Store, a new user may need to tap the link a second time.
 - **Saves:** online only. A failed save stays on screen with Retry. There is no offline queue.
 - **Shares:** whole numbers only.
 - **Hiding settled trips:** only a trip that has dates, whose end date is in the past, and that is at $0 is hidden. A trip without dates is never hidden. The control is labeled "Show settled trips."
@@ -277,7 +277,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Test people (Debug only):** the sign-in screen has a "Test person's name" field that signs in anonymously against the local backend, so two simulators can act as two people without two Apple IDs. Anonymous sign-in is enabled only in the local config, never on the hosted project.
 - **Welcome modal after a link:** shown to newcomers. Someone already on the trip who taps its link just lands on Trips.
 - **Profiles are visible to anyone you've shared a trip with, including removed members**, so a removed member's name stays on the trip and, with keep, both sides can still see who they settle up with.
-- **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload and the `trip-photos` bucket are removed to keep the build smaller; photos can come back later.
+- **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload is removed to keep the build smaller; photos can come back later. The empty private `trip-photos` bucket remains until it's deleted in the Supabase dashboard (SQL can't delete storage rows; see `docs/data-model.md` › Notes).
 - **Removed members can't rejoin with a link.** Their old invite link no longer works for them. An active member can add them back from Add members; after a wipe they come back with no share in the old expenses.
 - **Live updates:** the app subscribes to its trips' rows (trips, members, payments, activity; every expense change writes an activity row) and re-queries on any change, so an expense saved on one phone shows on the others within a few seconds.
 - **Expense row for your own cost:** when you paid and your share is the whole amount, the row reads "You paid $X" (the Activity wording), since "You lent $0" says nothing.
