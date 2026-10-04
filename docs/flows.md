@@ -20,7 +20,7 @@ sequenceDiagram
     alt App installed
         Inv-->>App: Open tripsplit://join/:token
     else Not installed
-        Inv-->>Store: Redirect
+        Inv-->>Store: "Get TripSplit" button
         A->>Store: Installs, opens app
         Note over A,App: May need to tap the link again<br/>(no Universal Links yet)
     end
@@ -39,7 +39,7 @@ sequenceDiagram
     participant App as TripSplit (Taylor)
     participant DB as Postgres
     participant RT as Realtime
-    participant Push as Edge fn: push
+    participant Push as Edge fn: push (Phase 5)
     participant APNs
     participant Other as Alex's app
 

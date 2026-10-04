@@ -29,7 +29,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | `trip_members` | active members of the trip | none (use `join_trip`, `remove_member`) |
 | `expenses`, `expense_shares` | active members | none (use `save_expense`, `delete_expense`) |
 | `payments` | active members, plus a removed-with-keep payer or payee for their own rows | none (use `log_payment`, `delete_payment`) |
-| `activity_events` | active members; members at deletion time for a deleted trip's delete event | none, ever (written by functions) |
+| `activity_events` | active members. A trip's deleted state doesn't hide its events, so members still see the `trip_deleted` row and can undelete | none, ever (written by functions) |
 | `device_tokens` | self | self |
 
 ## Gotchas

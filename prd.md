@@ -21,7 +21,7 @@ Stamps do not have letters or words.
 
 Stamps are always fully visible, they do not go off screen or out of frame. 
 
-Empty state screens will have a collection of 3 different stamps. When a trip is created, a stamp is automatically generated. If the user does not upload their own photo, the generated stamp will remain. The stamp is the trips avatar.
+Empty state screens will have a collection of 3 different stamps. When a trip is created, a stamp is automatically generated. The stamp is the trip's avatar (there are no trip photos; see Prototype decisions).
 
 ### Account
 
@@ -152,7 +152,7 @@ Send a push when:
 - Someone joined a trip you are on.
 - Someone deleted a trip you are on, or undeleted one.
 
-Do not send a push when the trip’s name, photo, or dates change, when someone leaves, when a payment does not include you, or as a reminder to settle.
+Do not send a push when the trip’s name or dates change, when someone leaves, when a payment does not include you, or as a reminder to settle.
 
 ## Stored versus calculated
 
@@ -191,12 +191,11 @@ Do not decide these. Do not invent a default and build it.
 
 1. **Cash confirm.** Cash logs inside TripSplit. Whether that path skips the confirm step is not decided.
 2. **Journey defaults that were never confirmed.** The plan’s “Journey defaults to confirm” are not requirements. Where a rule above already decides the point, follow the rule. The undecided items are:
-   - A trip photo can be skipped, with a placeholder until one is added.
    - After create, the trip opens on Add members, and members are not required.
-   - A trip shows its photo, name, dates, members, and expenses newest first. Your net on the trip is already required.
+   - A trip shows its stamp, name, dates, members, and expenses newest first. Your net on the trip is already required.
    - Anything about the trip card or the header that is not already in the rules above.
    - The rest of the $0-trip note: an expense putting the trip back on the main list, a deleted trip staying out of both lists, no archive, and whether a person’s screen hides trips already settled with them or has its own “Show settled trips.” The trips-list control is already required.
-   - Who can add, edit, or delete an expense, invite, leave, edit the trip’s name, photo, and dates, remove someone, or delete the trip. Leaving does not rewrite past expenses is only this unconfirmed note. Swipe-remove and “past expenses stay” are already required.
+   - Who can add, edit, or delete an expense, invite, leave, edit the trip’s name and dates, remove someone, or delete the trip. Leaving does not rewrite past expenses is only this unconfirmed note. Swipe-remove and “past expenses stay” are already required.
    - A link joins the trip immediately. Someone already on it just opens the trip.
    - An expense has a date, defaulting to today, and it can be changed.
    - The amount uses a large figure and the system number pad.
@@ -223,7 +222,7 @@ These resolve conflicts and Open items above. Where this section and an earlier 
 - **Expense date:** defaults to today and can be changed.
 - **Invite link:** joins the trip immediately. Someone already on the trip just opens it.
 - **After create:** the trip opens on Add members, which can be skipped.
-- **Links:** Apple Developer account, no domain yet. A Supabase-hosted redirect page stands in for Universal Links. After installing from the App Store, a new user may need to tap the link a second time.
+- **Links:** Apple Developer account, no domain yet. A static page on GitHub Pages (`site/join/`, token in the URL fragment) stands in for Universal Links: it opens the app, or shows a Get TripSplit button when it isn't installed. After installing from the App Store, a new user may need to tap the link a second time.
 - **Saves:** online only. A failed save stays on screen with Retry. There is no offline queue.
 - **Shares:** whole numbers only.
 - **Hiding settled trips:** only a trip that has dates, whose end date is in the past, and that is at $0 is hidden. A trip without dates is never hidden. The control is labeled "Show settled trips."
@@ -278,9 +277,9 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Test people (Debug only):** the sign-in screen has a "Test person's name" field that signs in anonymously against the local backend, so two simulators can act as two people without two Apple IDs. Anonymous sign-in is enabled only in the local config, never on the hosted project.
 - **Welcome modal after a link:** shown to newcomers. Someone already on the trip who taps its link just lands on Trips.
 - **Profiles are visible to anyone you've shared a trip with, including removed members**, so a removed member's name stays on the trip and, with keep, both sides can still see who they settle up with.
-- **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload and the `trip-photos` bucket are removed to keep the build smaller; photos can come back later.
+- **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload is removed to keep the build smaller; photos can come back later. The empty private `trip-photos` bucket remains until it's deleted in the Supabase dashboard (SQL can't delete storage rows; see `docs/data-model.md` › Notes).
 - **Removed members can't rejoin with a link.** Their old invite link no longer works for them. An active member can add them back from Add members; after a wipe they come back with no share in the old expenses.
-- **Live updates:** the app subscribes to its trips' rows (expenses, shares, payments, members, activity) and re-queries on any change, so an expense saved on one phone shows on the others within a few seconds.
+- **Live updates:** the app subscribes to its trips' rows (trips, members, payments, activity; every expense change writes an activity row) and re-queries on any change, so an expense saved on one phone shows on the others within a few seconds.
 - **Expense row for your own cost:** when you paid and your share is the whole amount, the row reads "You paid $X" (the Activity wording), since "You lent $0" says nothing.
 - **Trip is locked while editing an expense.** Moving an expense between trips would change two trips' balances; delete and re-add instead.
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.

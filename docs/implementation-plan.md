@@ -72,7 +72,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 2: Accounts and trips
 
-**Status: done in PR #4:** 95 pgTAP assertions, 22 Swift tests, and the two-simulator exit test run with Debug test people (real Sign in with Apple needs each simulator signed into an Apple Account).
+**Status: done in PR #4:** the two-simulator exit test ran with Debug test people (real Sign in with Apple needs each simulator signed into an Apple Account). On 2026-10-04 the hosted project got all migrations, and two people with their own Apple IDs signed in, joined a trip by invite link, and added expenses on two real iPhones. The invite page moved to static hosting (`site/join/`) because Supabase's functions domain won't serve HTML.
 
 **Build**
 - Add `supabase-swift` (pin versions so `IssueReporting` resolves once); build the client from `Backend.url` and `Backend.publishableKey`.
@@ -90,7 +90,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 3: Expenses
 
-**Status: done in the Phase 3 PR:** 101 pgTAP assertions, 34 Swift tests, realtime verified on two simulators. Also carried the architectural-review fixes and the stamps-only decision (trip photos removed).
+**Status: done in the Phase 3 PR:** 106 pgTAP assertions, 38 Swift tests (counts as of 2026-10-04), realtime verified on two simulators. Also carried the architectural-review fixes and the stamps-only decision (trip photos removed).
 
 **Build**
 - Expense form as a sheet: decimal pad amount, description with keyword icon (tap to override), "Paid by you and split equally" controls, trip picker (default trip rules, including preselecting a trip you just joined), date.
