@@ -1,6 +1,6 @@
 # Data model
 
-The proposed Supabase Postgres schema. **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
+The Supabase Postgres schema, implemented through Phase 3 (`push` and `device_tokens` writes arrive in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
 erDiagram
@@ -41,7 +41,8 @@ erDiagram
     trip_members {
         uuid trip_id PK
         uuid user_id PK
-        timestamptz joined_at "member order"
+        bigint position "identity, orders members for the remainder rule"
+        timestamptz joined_at
         timestamptz removed_at "nullable"
         uuid removed_by "nullable"
         text removal "keep | wipe, nullable"
@@ -139,7 +140,9 @@ Every multi-row money write is one function in one transaction, so invariants ho
 ## Notes
 
 - **Why deltas are snapshotted:** the PRD calculates the dollar line "from that event's effect on you". Recomputing that effect later, after edits and deletes, would change old Activity rows. A snapshot freezes it.
-- **Realtime:** clients subscribe to `expenses`, `expense_shares`, `payments`, `trip_members`, and `activity_events` for their trips, and re-query balances on change.
+- **Realtime:** the publication holds `trips`, `trip_members`, `payments`, and `activity_events`, and the app re-queries on any change. `expenses` and `expense_shares` are left out on purpose: their DELETE events would reach every subscriber. Every change to them writes an `activity_events` row, and that row is the signal.
+- **Function privileges:** Postgres grants EXECUTE on new functions to PUBLIC. Every function in `public` is revoked from `public` and `anon` and granted to `authenticated` explicitly; `invite_preview` is the one `anon` exception. pgTAP (`005_access`) fails if anything else is callable signed out.
+- **Leftover bucket:** the private `trip-photos` storage bucket still exists, empty. Trip photos were removed (stamps only), and Supabase refuses deleting storage rows from SQL, so remove it from the dashboard if you want it gone.
 - **Stamp** is stored, not regenerated, so a trip looks the same on every device. Its JSON matches the app's `StampSpec` (`ios/TripSplit/DesignSystem/Stamp.swift`):
   ```json
   {"shape": "ticket", "glyph": "road", "ink": "blue", "rotation": -6.0, "offsetX": 0.02, "offsetY": -0.015}

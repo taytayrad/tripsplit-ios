@@ -1,7 +1,7 @@
 -- Access rules (docs/permissions.md): who can read what, and that money tables only change via functions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 select tests.users('you', 'alex', 'olive');  -- Olive is an outsider
 select tests.trip('cr', array['you', 'alex']);
@@ -58,6 +58,13 @@ reset role;
 insert into public.expense_shares (expense_id, user_id, share_cents) values ((select id from t_e), tests.id('alex'), 1)
   on conflict (expense_id, user_id) do update set share_cents = public.expense_shares.share_cents + 1;
 select throws_ok('set constraints all immediate', 'P0001', null, 'shares that don''t add up to the expense are rejected');
+
+-- Signed-out callers get nothing but the invite preview. A new function that forgets to revoke PUBLIC fails here.
+select is(
+  (select array_agg(p.proname::text order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')),
+  array['invite_preview'],
+  'anon can execute only invite_preview');
 
 select * from finish();
 rollback;
