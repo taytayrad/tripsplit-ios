@@ -285,6 +285,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Trip is locked while editing an expense.** Moving an expense between trips would change two trips' balances; delete and re-add instead.
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.
 - **Add trip shows its stamp before saving.** The stamp is generated when the form opens, so you see what the trip will look like.
+- **Tap the stamp to regenerate it** while creating a trip. Once the trip exists the stamp is fixed.
 - **The + button** adds an expense, or starts a trip when you have none (the Figma header). Another trip starts from an "Add trip" button under the trip cards on Trips.
 
 ### Assumed in the prototype, not yet confirmed

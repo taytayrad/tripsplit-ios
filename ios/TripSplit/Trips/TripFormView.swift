@@ -26,7 +26,16 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    StampAvatar(spec: liveTrip?.stamp ?? stamp, size: 96).frame(maxWidth: .infinity)
+                    if let live = liveTrip {
+                        StampAvatar(spec: live.stamp, size: 96).frame(maxWidth: .infinity)
+                    } else {
+                        Button { withAnimation { stamp = .random() } } label: {
+                            StampAvatar(spec: stamp, size: 96).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Trip stamp")
+                        .accessibilityHint("Double tap for a different stamp")
+                    }
                 }
                 .listRowBackground(Color.clear)
 

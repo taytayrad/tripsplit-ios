@@ -31,7 +31,7 @@ struct SplitView: View {
                     .pickerStyle(.segmented)
                 }
                 .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))  // keeps the list's rounded section clip off the control's ends
             }
             Section {
                 ForEach(members, id: \.userId) { m in
