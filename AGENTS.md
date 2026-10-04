@@ -21,7 +21,7 @@ Native iPhone app (SwiftUI, iOS 17+) on Supabase, for close friends to split tri
 ## Working in the repo
 
 - **iOS:** the Xcode project is generated. Edit `ios/project.yml`, then run `xcodegen` in `ios/`; `TripSplit.xcodeproj` is not committed. Tests use Swift Testing.
-- **Database:** `supabase db start`, then `supabase test db` runs the pgTAP tests in `supabase/tests/database/`.
+- **Database:** `supabase db start`, then `supabase db reset` (migrations + `seed.sql`), then `supabase test db` runs the pgTAP tests in `supabase/tests/database/`. Tests act as signed-in people through helpers in `seed.sql` (`tests.users`, `tests.trip`, `tests.equal`, `tests.authenticate_as`); seed files never reach the hosted project. New functions must be granted to `authenticated` explicitly (anon gets nothing).
 - **CI:** `.github/workflows/ci.yml` runs both on every PR.
 
 ## Rules that bite

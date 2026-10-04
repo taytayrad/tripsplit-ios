@@ -120,7 +120,7 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `join_trip(invite_token)` | adds caller as member, or no-op if already a member; logs `member_joined` |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
 | `delete_expense(id)` | hard-deletes expense and shares, logs `expense_deleted` with deltas |
-| `log_payment(other_user, amount, direction, method, request_id)` | rejects amounts above the combined balance in that direction, allocates oldest trip first, inserts one payment per trip, logs `payment_logged` per row |
+| `log_payment(other_user, amount_cents, direction, method, request_id)` | `direction` is `pay` (you pay them) or `record` (they paid you). Rejects amounts above what's owed, allocates oldest trip first, inserts one payment per trip, logs `payment_logged` per row, and returns the rows. Retrying a `request_id` returns the existing rows |
 | `delete_payment(id)` | soft-deletes, logs `payment_deleted` |
 | `remove_member(trip, user, keep \| wipe)` | marks removal; for wipe, rewrites shares (see money-rules › Wipe) |
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
@@ -129,8 +129,10 @@ Every multi-row money write is one function in one transaction, so invariants ho
 
 | Need | Source |
 |---|---|
-| Pairwise balances | SQL view `pair_balances(trip_id, user_a, user_b, cents)` over non-deleted trips, expenses, shares, and non-deleted payments |
-| Trip net, combined balance, header total | sums over `pair_balances` |
+| Pairwise balances | `my_pair_balances()` → `(trip_id, other_user_id, cents)`, positive = they owe you. Built on the private view `private.pair_balances` (non-deleted trips, expenses, shares, non-deleted payments), which clients can't query directly |
+| Trip net | `my_trip_nets()` → `(trip_id, cents)` |
+| Combined balance (Your Balance rows) | `my_combined_balances()` → `(other_user_id, cents)`, $0 people omitted |
+| Header total (balance chip) | `my_header_total()` → `cents`, the sum of the combined rows |
 | Activity dollar line | `activity_events.deltas[you]`, snapshotted when the event was written so history doesn't shift after later edits |
 
 ## Notes

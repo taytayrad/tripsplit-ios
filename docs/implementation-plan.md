@@ -54,6 +54,8 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 1: Money core (backend, test-first)
 
+**Status: done in PR #3** (pending merge): 82 pgTAP assertions and the Swift split tests.
+
 **Build**, in this order, with tests written before each function:
 1. Migrations for every table in `data-model.md`, with constraints, the 20-member trigger, and the share-sum trigger.
 2. Split computation (remainder rule), shared by `save_expense`.
