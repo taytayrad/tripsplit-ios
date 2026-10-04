@@ -11,22 +11,45 @@ struct MainView: View {
             ProfileTab().tabItem { Label("Profile", systemImage: "person.crop.circle") }           // Phase 5 fills this in
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
+        .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
     }
 }
 
-/// The header on every main screen: balance chip (left) and Add (right).
+/// The header on every main screen: balance chip (left) and Add (right). Add logs an expense; with no trips
+/// yet it starts a trip. Another trip starts from the Add trip button under the trip cards.
 struct MainHeader: ToolbarContent {
-    let onAdd: () -> Void
+    let onAddTrip: () -> Void
     @Environment(AppModel.self) private var app
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            BalanceChip(cents: app.headerTotal)  // Phase 4 makes it open Your Balance
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarLeading) { chip }.sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) { add }.sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { chip }
+            ToolbarItem(placement: .topBarTrailing) { add }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button(action: onAdd) { Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill) }
-                .accessibilityLabel("Add")
+    }
+
+    private var chip: some View { BalanceChip(cents: app.headerTotal) }  // Phase 4 makes it open Your Balance
+
+    private var add: some View {
+        AddButton(onAddTrip: onAddTrip)
+    }
+}
+
+/// Tap adds an expense, or starts a trip when you have none (Figma Main Header).
+private struct AddButton: View {
+    let onAddTrip: () -> Void
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Button {
+            if app.trips.isEmpty { onAddTrip() } else { app.addExpense() }
+        } label: {
+            Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill)
         }
+        .accessibilityLabel("Add")
     }
 }
 

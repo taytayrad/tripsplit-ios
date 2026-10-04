@@ -32,7 +32,6 @@ struct Member: Codable, Hashable {
 struct Trip: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
-    var imagePath: String?
     var stamp: StampSpec
     var startDate: String?
     var endDate: String?
@@ -41,7 +40,7 @@ struct Trip: Codable, Identifiable, Hashable {
     var tripMembers: [Member]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, imagePath = "image_path", stamp, startDate = "start_date", endDate = "end_date"
+        case id, name, stamp, startDate = "start_date", endDate = "end_date"
         case inviteToken = "invite_token", createdBy = "created_by", tripMembers = "trip_members"
     }
 
@@ -89,4 +88,34 @@ enum Money {
     }
     /// Signed, for the balance chip only: "-$128", "$64", "$0".
     static func signed(_ cents: Int) -> String { (cents < 0 ? "-" : "") + string(cents) }
+}
+
+struct ExpenseShare: Codable, Hashable {
+    let userId: UUID
+    let shareCents: Int
+    let splitInput: Decimal?
+    enum CodingKeys: String, CodingKey { case userId = "user_id", shareCents = "share_cents", splitInput = "split_input" }
+}
+
+struct Expense: Codable, Identifiable, Hashable {
+    let id: UUID
+    let tripId: UUID
+    var description: String
+    var icon: ExpenseIcon
+    var amountCents: Int
+    var payerId: UUID
+    var splitKind: SplitKind
+    var spentOn: String
+    let createdBy: UUID
+    let createdAt: Date
+    var expenseShares: [ExpenseShare]
+
+    enum CodingKeys: String, CodingKey {
+        case id, description, icon, tripId = "trip_id", amountCents = "amount_cents", payerId = "payer_id"
+        case splitKind = "split_kind", spentOn = "spent_on", createdBy = "created_by", createdAt = "created_at"
+        case expenseShares = "expense_shares"
+    }
+
+    func share(of user: UUID?) -> Int? { expenseShares.first { $0.userId == user }?.shareCents }
+    var date: Date { DayFormat.parse(spentOn) ?? createdAt }
 }

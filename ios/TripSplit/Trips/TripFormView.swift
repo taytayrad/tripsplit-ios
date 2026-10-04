@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftUI
 
 /// Add trip and Edit trip. Adding opens Add members next (members aren't required).
@@ -10,11 +9,10 @@ struct TripFormView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var stamp = StampSpec.random()  // the new trip's stamp, shown before saving
     @State private var hasDates = false
     @State private var start = Date.now
     @State private var end = Date.now
-    @State private var photoItem: PhotosPickerItem?
-    @State private var photoData: Data?
     @State private var saving = false
     @State private var created: Trip?
     @State private var removing: Member?
@@ -28,12 +26,7 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    // The label closure isn't main-actor isolated, so pass it plain values.
-                    let data = photoData, trip = liveTrip
-                    let title = editing?.imagePath == nil && photoData == nil ? "Add a photo" : "Change photo"
-                    PhotosPicker(selection: $photoItem, matching: .images) {
-                        PhotoPickerLabel(photoData: data, trip: trip, title: title)
-                    }
+                    StampAvatar(spec: liveTrip?.stamp ?? stamp, size: 96).frame(maxWidth: .infinity)
                 }
                 .listRowBackground(Color.clear)
 
@@ -77,7 +70,6 @@ struct TripFormView: View {
                 AddMembersView(tripId: trip.id, onDone: { onCreated(trip); dismiss() })
             }
             .onAppear(perform: load)
-            .onChange(of: photoItem) { Task { await loadPhoto() } }
             .confirmationDialog("Remove \(removing?.profiles.displayName ?? "")?", isPresented: .init(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing) { m in
                 Button("Keep their balance") { Task { await remove(m, keep: true) } }
                 Button("Wipe their balance", role: .destructive) { Task { await remove(m, keep: false) } }
@@ -101,20 +93,15 @@ struct TripFormView: View {
         if let s = t.start, let e = t.end { hasDates = true; start = s; end = e }
     }
 
-    private func loadPhoto() async {
-        guard let data = try? await photoItem?.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
-        photoData = image.resizedToFit(1600).jpegData(compressionQuality: 0.8)
-    }
-
     private func save() async {
         saving = true; defer { saving = false }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         do {
             if let t = editing {
-                try await app.updateTrip(t.id, name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil, photo: photoData)
+                try await app.updateTrip(t.id, name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 dismiss()
             } else {
-                created = try await app.createTrip(name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil, photo: photoData)
+                created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
             }
         } catch { self.error = AppModel.describe("Check your connection and try again.", error) }
     }
@@ -127,30 +114,6 @@ struct TripFormView: View {
     private func deleteTrip() async {
         guard let t = editing else { return }
         do { try await app.deleteTrip(t.id); dismiss() } catch { self.error = AppModel.describe("Couldn’t delete the trip. Try again.", error) }
-    }
-}
-
-private struct PhotoPickerLabel: View {
-    let photoData: Data?
-    let trip: Trip?
-    let title: String
-
-    var body: some View {
-        VStack(spacing: Spacing.sm) {
-            preview.frame(width: 96, height: 96).clipShape(.rect(cornerRadius: Radius.xl))
-            Text(title)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder private var preview: some View {
-        if let photoData, let image = UIImage(data: photoData) {
-            Image(uiImage: image).resizable().scaledToFill()
-        } else if let trip {
-            TripAvatar(trip: trip, size: 96)
-        } else {
-            ZStack { Color(.systemGray5); Image(systemName: "camera").font(.title).foregroundStyle(Color.tsSecondary) }
-        }
     }
 }
 
@@ -195,14 +158,5 @@ struct AddMembersView: View {
             }
             .refreshable { await app.refresh() }
         }
-    }
-}
-
-extension UIImage {
-    func resizedToFit(_ maxSide: CGFloat) -> UIImage {
-        let scale = min(1, maxSide / max(size.width, size.height))
-        guard scale < 1 else { return self }
-        let target = CGSize(width: size.width * scale, height: size.height * scale)
-        return UIGraphicsImageRenderer(size: target).image { _ in draw(in: CGRect(origin: .zero, size: target)) }
     }
 }

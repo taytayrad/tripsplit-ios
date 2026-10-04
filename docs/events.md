@@ -18,7 +18,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 | `trip_deleted` | Sammy deleted the trip "Orlando 2027" | none | every other active member | `notify_trip_deleted` |
 | `trip_undeleted` | Sammy restored the trip "Orlando 2027" | none | every other active member | `notify_trip_deleted` |
 | `member_removed` | Taylor removed Jordan from "Coast Road" | wipe only: the re-split delta | nobody | — |
-| `trip_edited` (name, photo, dates) | — (not shown) | — | nobody | — |
+| `trip_edited` (name, dates) | — (not shown) | — | nobody | — |
 
 ## Rules
 
@@ -35,7 +35,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
   | You paid; Alex and Jordan only | +100 | You get back $100 |
   | Alex paid; you and Alex equally | −50 | You owe $50 |
   | Alex paid; you not in the split | 0 | none |
-- **No push when:** the trip's name, photo, or dates change; someone leaves; a payment doesn't include you; or as a reminder to settle (PRD › Notifications).
+- **No push when:** the trip's name or dates change; someone leaves; a payment doesn't include you; or as a reminder to settle (PRD › Notifications).
 - **Timestamps:** today shows the time only; earlier days show a short date and time.
 - **Taps:** an expense row opens the expense (edit), a trip row opens the trip, and a `trip_deleted` row asks "Do you want to undelete this trip?"
 - **Search** filters by person, expense title, or trip name.

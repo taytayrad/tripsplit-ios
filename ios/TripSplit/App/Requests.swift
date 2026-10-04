@@ -61,3 +61,36 @@ extension PostgrestBuilder {
     func run() async throws { _ = try await execute() }
     func value<T: Decodable & Sendable>() async throws -> T { try await execute().value }
 }
+
+struct SplitInput: Encodable, Sendable {
+    let user_id: UUID
+    let value: Decimal
+}
+
+struct SaveExpenseArgs: Encodable, Sendable {
+    let p_trip: UUID
+    let p_expense_id: UUID?
+    let p_description: String
+    let p_icon: String
+    let p_amount_cents: Int
+    let p_payer: UUID
+    let p_split_kind: String
+    let p_inputs: [SplitInput]
+    let p_spent_on: String
+    enum CodingKeys: String, CodingKey {
+        case p_trip, p_expense_id, p_description, p_icon, p_amount_cents, p_payer, p_split_kind, p_inputs, p_spent_on
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(p_trip, forKey: .p_trip)
+        try c.encode(p_expense_id, forKey: .p_expense_id)  // null for a new expense
+        try c.encode(p_description, forKey: .p_description)
+        try c.encode(p_icon, forKey: .p_icon)
+        try c.encode(p_amount_cents, forKey: .p_amount_cents)
+        try c.encode(p_payer, forKey: .p_payer)
+        try c.encode(p_split_kind, forKey: .p_split_kind)
+        try c.encode(p_inputs, forKey: .p_inputs)
+        try c.encode(p_spent_on, forKey: .p_spent_on)
+    }
+}

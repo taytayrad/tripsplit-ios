@@ -26,13 +26,14 @@ struct TripsView: View {
                             Button(showSettled ? "Hide settled trips" : "Show settled trips") { showSettled.toggle() }
                                 .font(.subheadline)
                         }
+                        Button("Add trip") { addingTrip = true }.font(.subheadline)
                     }
                     .padding(Spacing.lg)
                 }
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Trips")
-            .toolbar { MainHeader { addingTrip = true } }  // ponytail: Add opens Add trip until Phase 3's expense form
+            .toolbar { MainHeader { addingTrip = true } }
             .refreshable { await app.refresh() }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .sheet(isPresented: $addingTrip) {

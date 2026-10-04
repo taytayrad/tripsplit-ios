@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+
 import Supabase
 import UserNotifications
 
@@ -16,12 +17,27 @@ final class AppModel {
     /// People you share a trip with ("On TripSplit").
     var people: [PersonName] = []
     var pendingInvite: String? {
-        didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite") }
+        didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite"); inviteErrorShown = false }
     }
+    /// A join that keeps failing the same way (trip full, offline) alerts once, not on every background refresh.
+    private var inviteErrorShown = false
     var invitePreview: InvitePreview?
     /// Set after joining by link; drives the welcome modal.
     var welcomeTrip: Trip?
     var error: String?
+    /// Expenses on every trip you're on, newest first.
+    var expenses: [Expense] = []
+    /// The expense form, when it's open.
+    var expenseSheet: ExpenseSheet?
+    /// The trip you joined most recently by link; the expense form starts there (PRD › Default trip after an invite).
+    private var justJoinedTrip: UUID?
+    private var lastExpenseTrip: UUID? {
+        get { UserDefaults.standard.string(forKey: "lastExpenseTrip").flatMap(UUID.init) }
+        set { UserDefaults.standard.set(newValue?.uuidString, forKey: "lastExpenseTrip") }
+    }
+    private var realtime: RealtimeChannelV2?
+    private var realtimeSubscriptions: [RealtimeSubscription] = []  // dropping a token removes its callback
+    private var refreshTask: Task<Void, Never>?
 
     private let db = Backend.client
 
@@ -45,11 +61,13 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []
+                profile = nil; trips = []; expenses = []
                 stage = .signedOut
+                await stopRealtime()
                 await loadInvitePreview()
             } else {
                 await afterSignIn()
+                await startRealtime()
             }
         }
     }
@@ -131,39 +149,103 @@ final class AppModel {
             async let n: [TripNet] = db.rpc("my_trip_nets").value()
             async let h: Int = db.rpc("my_header_total").value()
             async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
-            (trips, nets, headerTotal, people) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p)
+            async let e: [Expense] = allExpenses()
+            (trips, nets, headerTotal, people, expenses) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p, e)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
+        if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
+        if realtime == nil, stage == .ready { await startRealtime() }
+    }
+
+    /// Every expense you can see, newest first, in pages (the API caps a response at 1000 rows).
+    private func allExpenses() async throws -> [Expense] {
+        var all: [Expense] = []
+        let page = 1000
+        while true {
+            let rows: [Expense] = try await db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
+                .order("spent_on", ascending: false).order("created_at", ascending: false).order("id")
+                .range(from: all.count, to: all.count + page - 1).value()
+            all += rows
+            if rows.count < page { return all }
+        }
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
+    func expenses(on trip: UUID) -> [Expense] { expenses.filter { $0.tripId == trip } }
+
+    // MARK: Realtime
+
+    /// Any change on a money table re-queries everything, coalesced so a burst of rows is one refresh.
+    private func startRealtime() async {
+        guard realtime == nil else { return }
+        let channel = db.channel("changes")
+        // Not expenses or expense_shares: their DELETE events would reach every subscriber. Every change to
+        // them writes an activity_events row, so that table is the signal.
+        for table in ["trips", "trip_members", "payments", "activity_events"] {
+            realtimeSubscriptions.append(channel.onPostgresChange(AnyAction.self, schema: "public", table: table) { [weak self] _ in
+                Task { @MainActor in self?.scheduleRefresh() }
+            })
+        }
+        do {
+            try await channel.subscribeWithError()
+            realtime = channel
+        } catch {
+            // Nil means the next refresh (pull, foreground) subscribes again.
+            realtimeSubscriptions = []
+            await db.removeChannel(channel)
+            self.error = Self.describe("Live updates are off. Pull to refresh.", error)
+        }
+    }
+
+    private func stopRealtime() async {
+        refreshTask?.cancel(); refreshTask = nil
+        if let realtime { await db.removeChannel(realtime) }
+        realtime = nil; realtimeSubscriptions = []
+    }
+
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await refresh()
+        }
+    }
+
+    // MARK: Expenses
+
+    /// Opens the form on `trip`, or on the default trip (PRD › Expenses) when nil.
+    func addExpense(on trip: UUID? = nil) {
+        guard let id = trip ?? DefaultTrip.choose(justJoined: justJoinedTrip, lastUsed: lastExpenseTrip, tripsNewestFirst: trips.map(\.id)) else { return }
+        expenseSheet = .add(tripId: id)
+    }
+
+    func saveExpense(_ args: SaveExpenseArgs) async throws {
+        let _: UUID = try await db.rpc("save_expense", params: args).value()
+        lastExpenseTrip = args.p_trip
+        justJoinedTrip = nil
+        await refresh()
+    }
+
+    func deleteExpense(_ id: UUID) async throws {
+        try await db.rpc("delete_expense", params: ["p_expense": id]).run()
+        await refresh()
+    }
 
     // MARK: Trips
 
-    func createTrip(name: String, start: Date?, end: Date?, photo: Data?) async throws -> Trip {
+    func createTrip(name: String, stamp: StampSpec, start: Date?, end: Date?) async throws -> Trip {
         let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
-            p_name: name, p_stamp: .random(), p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
+            p_name: name, p_stamp: stamp, p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
         )).value()
-        if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
         guard let trip = trip(id) else { throw URLError(.badServerResponse) }
         return trip
     }
 
-    func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?, photo: Data?) async throws {
+    func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?) async throws {
         try await db.from("trips").update(TripDetailsUpdate(name: name, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
             .eq("id", value: id).run()
-        if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
-    }
-
-    private func setPhoto(tripId: UUID, _ data: Data) async throws {
-        let path = "\(tripId.uuidString.lowercased())/cover-\(Int(Date().timeIntervalSince1970)).jpg"
-        try await db.storage.from("trip-photos").upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
-        try await db.from("trips").update(["image_path": path]).eq("id", value: tripId).run()
-    }
-
-    func photoURL(_ path: String) async -> URL? {
-        try? await db.storage.from("trip-photos").createSignedURL(path: path, expiresIn: 3600)
     }
 
     func deleteTrip(_ id: UUID) async throws {
@@ -203,10 +285,22 @@ final class AppModel {
             pendingInvite = nil; invitePreview = nil
             await refresh()
             // Someone already on the trip just opens it; newcomers get the welcome.
-            if !alreadyOn { welcomeTrip = trip(id) }
-        } catch {
+            if !alreadyOn { welcomeTrip = trip(id); justJoinedTrip = id }
+        } catch let e as PostgrestError where e.message.contains("invite link not found") {
             pendingInvite = nil
             self.error = "That invite link didn't work. Ask for a new one."
+        } catch let e as PostgrestError where e.message.contains("removed from this trip") {
+            pendingInvite = nil
+            self.error = "You were removed from that trip. Ask a member to add you back."
+        } catch {
+            // Keep the token so pull-to-refresh retries the join; say why once.
+            guard !inviteErrorShown else { return }
+            inviteErrorShown = true
+            if let e = error as? PostgrestError, e.message.contains("at most 20 members") {
+                self.error = "That trip is full (20 people). Once someone leaves, pull to retry."
+            } else {
+                self.error = Self.describe("Couldn't join the trip yet. Pull to retry.", error)
+            }
         }
     }
 }

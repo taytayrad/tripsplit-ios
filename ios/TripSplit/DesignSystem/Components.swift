@@ -27,27 +27,23 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// A trip's image wherever the trip appears: its photo, or its generated stamp on the ink tint.
+/// A trip's image wherever the trip appears: its generated stamp on the ink tint (stamps only, no photos).
 struct TripAvatar: View {
     let trip: Trip
     var size: CGFloat = 56
-    @Environment(AppModel.self) private var app
-    @State private var photo: URL?
+    var body: some View { StampAvatar(spec: trip.stamp, size: size) }
+}
 
+struct StampAvatar: View {
+    let spec: StampSpec
+    var size: CGFloat = 56
     var body: some View {
         ZStack {
-            trip.stamp.ink.tint
-            if let photo {
-                AsyncImage(url: photo) { $0.resizable().scaledToFill() } placeholder: { Color(.systemGray5) }
-            } else {
-                StampView(spec: trip.stamp).padding(size * 0.05)
-            }
+            spec.ink.tint
+            StampView(spec: spec).padding(size * 0.05)
         }
         .frame(width: size, height: size)
         .clipShape(.rect(cornerRadius: size > 60 ? Radius.xl : Radius.md))
-        .task(id: trip.imagePath) {
-            photo = if let path = trip.imagePath { await app.photoURL(path) } else { nil }
-        }
         .accessibilityHidden(true)
     }
 }
