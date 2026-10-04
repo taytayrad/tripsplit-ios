@@ -37,11 +37,12 @@ struct Trip: Codable, Identifiable, Hashable {
     var endDate: String?
     let inviteToken: String
     let createdBy: UUID
+    let createdAt: Date
     var tripMembers: [Member]
 
     enum CodingKeys: String, CodingKey {
         case id, name, stamp, startDate = "start_date", endDate = "end_date"
-        case inviteToken = "invite_token", createdBy = "created_by", tripMembers = "trip_members"
+        case inviteToken = "invite_token", createdBy = "created_by", createdAt = "created_at", tripMembers = "trip_members"
     }
 
     /// Active members in member order.
@@ -50,7 +51,49 @@ struct Trip: Codable, Identifiable, Hashable {
     var end: Date? { endDate.flatMap(DayFormat.parse) }
 }
 
-struct TripNet: Codable { let tripId: UUID; let cents: Int; enum CodingKeys: String, CodingKey { case tripId = "trip_id", cents } }
+/// Your balance with one person on one trip (`my_pair_balances`); positive means they owe you. $0 pairs are omitted.
+struct PairBalance: Codable, Hashable, Sendable {
+    let tripId: UUID
+    let otherUserId: UUID
+    let cents: Int
+    enum CodingKeys: String, CodingKey { case tripId = "trip_id", otherUserId = "other_user_id", cents }
+}
+
+enum PayMethod: String, Codable, Sendable {
+    case venmo, zelle, appleCash = "apple_cash", cash, recorded
+
+    /// The suffix on a payment line ("You paid · Venmo"); a recorded payment has none.
+    var title: String? {
+        switch self {
+        case .venmo: "Venmo"
+        case .zelle: "Zelle"
+        case .appleCash: "Apple Cash"
+        case .cash: "Cash"
+        case .recorded: nil
+        }
+    }
+}
+
+/// A row `log_payment` returns: one per trip the payment touched.
+struct LoggedPayment: Decodable, Sendable {
+    let paymentId: UUID
+    let tripId: UUID
+    let amountCents: Int
+    enum CodingKeys: String, CodingKey { case paymentId = "payment_id", tripId = "trip_id", amountCents = "amount_cents" }
+}
+
+struct Payment: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let tripId: UUID
+    let payerId: UUID
+    let payeeId: UUID
+    let amountCents: Int
+    let method: PayMethod
+    let createdAt: Date
+    enum CodingKeys: String, CodingKey {
+        case id, method, tripId = "trip_id", payerId = "payer_id", payeeId = "payee_id", amountCents = "amount_cents", createdAt = "created_at"
+    }
+}
 
 struct InvitePreview: Codable, Hashable {
     let tripName: String
@@ -70,6 +113,17 @@ enum DayFormat {
     }()
     static func parse(_ s: String) -> Date? { formatter.date(from: s) }
     static func string(_ d: Date) -> String { formatter.string(from: d) }
+
+    private static let utc: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    /// The day a timestamp falls on in UTC, the way Postgres casts `created_at::date` on Supabase.
+    static func utcString(_ d: Date) -> String { utc.string(from: d) }
 
     /// "Oct 3 – 6", or "Oct 28 – Nov 2".
     static func range(_ start: Date, _ end: Date) -> String {

@@ -229,7 +229,7 @@ These resolve conflicts and Open items above. Where this section and an earlier 
 - **Wiping a removed member who is owed money:** the same keep-or-wipe choice applies. Wiping cancels their credit, re-split across the remaining members.
 - **Wipe algorithm:** accepted for the MVP as written in `docs/money-rules.md` › Wipe. It's a rare action and may change after user feedback.
 - **Payment amount (supersedes the earlier "not capped" decision):** for this pass, a payment can be at most the combined amount owed with that person. The log sheet won't log more and says why. Overpaying may come back later.
-- **Removed members:** lose access to the trip and its Activity. Their balance stays only if it was kept.
+- **Removed members:** lose access to the trip and its Activity. Their balance stays only if it was kept. With a kept balance they still see that trip's name and stamp where it appears on a person's screen, and they can't add, edit, or delete its expenses (issue #12).
 - **Expense icon:** keyword match from the description to the starter icons (groceries, restaurant, coffee, drinks, gas, rideshare, flight, lodging, tickets, shopping, general). Tapping the icon overrides it.
 - **Platform:** iOS 17 minimum.
 - **Your Balance sheet (supersedes "a row is a name and one signed amount"):** the sheet that opens from the header is titled "Your Balance". It opens with a balance block: the net label ("You owe", "You’re owed", or "Settled" at $0), the amount without a sign, and a trip-count line in the same style as the label ("Across 3 trips", counting only trips that aren't deleted). Rows are grouped under "You owe" and "Owes you", each a name and an unsigned amount. The header chip is the only place money is shown with a sign. No trip names on rows.
@@ -247,6 +247,14 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Showing where a payment goes:** when a logged amount touches more than one trip, the log sheet says where it goes before logging, for example "Pays off Lake House ($30) first, then $20 toward Coast Road."
 - **After a partial payment:** the balance block shows what's left, with a detail line like "You paid $50 today". The pay bar stays.
 - **Settled with a person:** the balance block shows "Settled", "$0", and "You and Alex are settled". Confetti plays in the stamp inks (static under Reduce Motion). The pay bar is removed.
+- **One source for every balance:** the header chip, trip cards, and Your Balance rows are all built from the same per-trip, per-person balances (`my_pair_balances`), so the chip always equals the sum of the rows.
+- **"Across N trips":** on Your Balance it counts the trips behind the people listed, and is left off when you're settled with everyone ("You’re settled with everyone." sits under the block instead). On a person's screen it appears only when the balance spans two or more trips.
+- **A person's screen lists only what's between the two of you:** expenses one of you paid with the other in the split (red when you owe, green when they owe you), then payments between you (neutral). Expenses between other people on the trip aren't shown.
+- **Venmo** opens `venmo.com/?txn=pay&recipients=<username>&amount=<amount>&note=TripSplit`, which hands off to the Venmo app when it's installed.
+- **Apple Cash** copies the amount and opens Messages (no recipient: TripSplit never has phone numbers).
+- **Zelle** has no app of its own to open (the standalone Zelle app was discontinued; Zelle lives in bank apps). Tapping Zelle copies the amount and opens the log sheet right away: "Amount copied. Send it with Zelle in your bank’s app, then log it here."
+- **Settled people stay reachable:** Your Balance has "Show settled people" under the rows, listing everyone else you share a trip with at $0, so a payment that settled someone can still be opened and deleted by either person.
+- **Deleting a payment:** swipe left on a payment line on the person's screen. "Delete this payment?" / "It comes off your balance with Alex. Either of you can delete a payment." with Cancel and Delete.
 
 ### Expenses
 - **Edit:** tapping an expense opens the add form as a sheet, filled in, titled "Edit expense", with Cancel and Save. "Delete expense" sits at the bottom. A line under it says who added the expense and when ("Added by you · Today, 9:41 AM").

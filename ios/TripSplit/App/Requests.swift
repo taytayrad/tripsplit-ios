@@ -94,3 +94,11 @@ struct SaveExpenseArgs: Encodable, Sendable {
         try c.encode(p_spent_on, forKey: .p_spent_on)
     }
 }
+
+struct LogPaymentArgs: Encodable, Sendable {
+    let p_other: UUID
+    let p_amount_cents: Int
+    let p_direction: String
+    let p_method: String
+    let p_request_id: UUID
+}
