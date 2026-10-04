@@ -14,11 +14,11 @@ sequenceDiagram
     participant App as TripSplit (Alex)
     participant DB as Postgres
 
-    T->>Msg: Share sheet → text with /join/:token
+    T->>Msg: Share sheet → text with /functions/v1/invite/:token
     A->>Msg: Taps link
-    Msg->>Inv: GET /join/:token
+    Msg->>Inv: GET /functions/v1/invite/:token
     alt App installed
-        Inv-->>App: Open app with token
+        Inv-->>App: Open tripsplit://join/:token
     else Not installed
         Inv-->>Store: Redirect
         A->>Store: Installs, opens app
@@ -28,7 +28,7 @@ sequenceDiagram
     App->>DB: join_trip(token)
     DB->>DB: Insert trip_member (no-op if already a member)<br/>Insert activity_event member_joined
     DB-->>App: Trip
-    App->>App: "Taylor added you to a trip!" → View Trips / Add expense
+    App->>App: Newcomers: "Taylor added you to a trip!" → View Trips / Add expense<br/>Already on the trip: no modal
 ```
 
 ## Adding an expense

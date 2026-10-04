@@ -24,7 +24,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 
 | Table | Select | Insert / update / delete from the client |
 |---|---|---|
-| `profiles` | self; people you share a trip with (name and pay-method flags; `venmo_username` only for co-members) | self, update only |
+| `profiles` | self; anyone you've shared a trip with, including removed members (a removed member's name stays on the trip, and with keep they still settle up) | self, update only |
 | `trips` | active members | none (use `create_trip`, `delete_trip`, `undelete_trip`). Name, photo, and dates can be updated by active members. |
 | `trip_members` | active members of the trip | none (use `join_trip`, `remove_member`) |
 | `expenses`, `expense_shares` | active members | none (use `save_expense`, `delete_expense`) |

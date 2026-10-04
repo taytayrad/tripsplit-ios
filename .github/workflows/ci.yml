@@ -13,14 +13,16 @@ jobs:
       - run: brew install xcodegen
       - name: Generate project
         working-directory: ios
-        run: xcodegen
+        run: xcodegen && xcodebuild -version
       - name: Test
         working-directory: ios
         run: |
-          set -o pipefail
           xcodebuild test -project TripSplit.xcodeproj -scheme TripSplit \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            CODE_SIGNING_ALLOWED=NO | tail -40
+            CODE_SIGNING_ALLOWED=NO > xcodebuild.log 2>&1 && status=0 || status=$?
+          grep -E "error:" xcodebuild.log | sort -u | head -50 || true
+          tail -40 xcodebuild.log
+          exit $status
 
   database:
     runs-on: ubuntu-latest

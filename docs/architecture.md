@@ -41,7 +41,7 @@ flowchart TB
         rt["Realtime<br/>row change streams"]
         storage["Storage<br/>trip photos"]
         fnPush["Edge function: push<br/>activity event → APNs"]
-        fnLink["Edge function: invite<br/>/join/:token redirect page"]
+        fnLink["Edge function: invite<br/>/invite/:token redirect page"]
     end
 
     apns["APNs"]
@@ -64,7 +64,7 @@ flowchart TB
 | **Postgres** | Source of truth. RPC functions own every money write (split → shares, payment allocation, wipe). The `pair_balances` view owns every balance read. RLS limits rows to the caller's trips. |
 | **Realtime** | Pushes row changes so every member's screens update in close to real time. |
 | **Edge function: push** | On each `activity_events` insert, finds affected members (event matrix in [`events.md`](events.md)), checks their preferences, skips the actor, sends APNs. |
-| **Edge function: invite** | Serves the invite link page. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
+| **Edge function: invite** | Serves the invite link page, which opens `tripsplit://join/:token`. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
 | **Storage** | Trip photos. The default trip image is the generated stamp, drawn in-app from `trips.stamp`. |
 
 ## Key choices
