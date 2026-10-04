@@ -40,8 +40,9 @@ flowchart TB
         db[("Postgres<br/>tables, RLS, RPC functions,<br/>pair_balances view")]
         rt["Realtime<br/>row change streams"]
         fnPush["Edge function: push<br/>activity event → APNs"]
-        fnLink["Edge function: invite<br/>/invite/:token redirect page"]
     end
+
+    invitePage["Static invite page (GitHub Pages)<br/>site/join/ redirect"]
 
     apns["APNs"]
     store["App Store"]
@@ -52,8 +53,8 @@ flowchart TB
     db -- "changes" --> rt
     db -- "database webhook on activity_events insert" --> fnPush
     fnPush --> apns
-    fnLink -- "app installed: open app with token" --> app
-    fnLink -- "not installed" --> store
+    invitePage -- "app installed: open app with token" --> app
+    invitePage -- "not installed" --> store
 ```
 
 | Container | Responsibility |
@@ -62,7 +63,7 @@ flowchart TB
 | **Postgres** | Source of truth. RPC functions own every money write (split → shares, payment allocation, wipe). The `pair_balances` view owns every balance read. RLS limits rows to the caller's trips. |
 | **Realtime** | Pushes row changes so every member's screens update in close to real time. |
 | **Edge function: push** | On each `activity_events` insert, finds affected members (event matrix in [`events.md`](events.md)), checks their preferences, skips the actor, sends APNs. |
-| **Edge function: invite** | Serves the invite link page, which opens `tripsplit://join/:token`. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
+| **Static invite page** | `site/join/index.html`, hosted free on GitHub Pages (Supabase's functions domain forces text/plain, so an edge function can't serve it). Kept in sync by hand with the `taytayrad/tripsplit-invite` Pages repo. Reads the token from the URL fragment and opens `tripsplit://join/:token`. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
 
 ## Key choices
 

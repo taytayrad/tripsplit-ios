@@ -9,14 +9,14 @@ sequenceDiagram
     actor T as Taylor
     actor A as Alex
     participant Msg as Messages
-    participant Inv as Edge fn: invite
+    participant Inv as Static invite page
     participant Store as App Store
     participant App as TripSplit (Alex)
     participant DB as Postgres
 
-    T->>Msg: Share sheet → text with /functions/v1/invite/:token
+    T->>Msg: Share sheet → text with the invite page link (site/join/#:token)
     A->>Msg: Taps link
-    Msg->>Inv: GET /functions/v1/invite/:token
+    Msg->>Inv: GET site/join/ (token in the #fragment)
     alt App installed
         Inv-->>App: Open tripsplit://join/:token
     else Not installed

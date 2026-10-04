@@ -81,7 +81,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 - Trips tab: empty state with three stamps, trip cards, hiding settled trips plus "Show settled trips". Tab bar, and the header with balance chip (showing $0 until phase 4) and Add.
 - Add trip and edit trip: name, generated stamp, dates; members list, swipe-to-remove with the keep-or-wipe alert; delete trip.
 - Trip detail: avatar, chips, balance block (wired in phase 4), empty expenses.
-- Invite: share sheet with link; `invite` edge function redirect page; `join_trip`; welcome modal ("Taylor added you to a trip!"); invite context on sign in.
+- Invite: share sheet with link; static invite page (`site/join/`); `join_trip`; welcome modal ("Taylor added you to a trip!"); invite context on sign in.
 
 **Exit criteria**
 - On two simulators with two Apple IDs: A creates a trip and shares the link; B taps it, signs in, completes onboarding, sees the welcome modal, and lands on Trips with the trip.
