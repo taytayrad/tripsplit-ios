@@ -32,7 +32,6 @@ struct Member: Codable, Hashable {
 struct Trip: Codable, Identifiable, Hashable {
     let id: UUID
     var name: String
-    var imagePath: String?
     var stamp: StampSpec
     var startDate: String?
     var endDate: String?
@@ -41,7 +40,7 @@ struct Trip: Codable, Identifiable, Hashable {
     var tripMembers: [Member]
 
     enum CodingKeys: String, CodingKey {
-        case id, name, imagePath = "image_path", stamp, startDate = "start_date", endDate = "end_date"
+        case id, name, stamp, startDate = "start_date", endDate = "end_date"
         case inviteToken = "invite_token", createdBy = "created_by", tripMembers = "trip_members"
     }
 

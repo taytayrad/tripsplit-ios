@@ -11,7 +11,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Create a trip | any signed-in user | creator becomes a member |
 | Edit trip name, photo, dates | active member | |
 | Add a member, share the invite link | active member | 20-member cap |
-| Join with a link | anyone holding the token | already a member: no-op |
+| Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
 | Remove a member (keep or wipe) | active member | the remover chooses keep or wipe |
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |

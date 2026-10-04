@@ -133,37 +133,26 @@ final class AppModel {
             async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
             (trips, nets, headerTotal, people) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
+        if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
 
     // MARK: Trips
 
-    func createTrip(name: String, start: Date?, end: Date?, photo: Data?) async throws -> Trip {
+    func createTrip(name: String, start: Date?, end: Date?) async throws -> Trip {
         let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
             p_name: name, p_stamp: .random(), p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
         )).value()
-        if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
         guard let trip = trip(id) else { throw URLError(.badServerResponse) }
         return trip
     }
 
-    func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?, photo: Data?) async throws {
+    func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?) async throws {
         try await db.from("trips").update(TripDetailsUpdate(name: name, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
             .eq("id", value: id).run()
-        if let photo { try await setPhoto(tripId: id, photo) }
         await refresh()
-    }
-
-    private func setPhoto(tripId: UUID, _ data: Data) async throws {
-        let path = "\(tripId.uuidString.lowercased())/cover-\(Int(Date().timeIntervalSince1970)).jpg"
-        try await db.storage.from("trip-photos").upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
-        try await db.from("trips").update(["image_path": path]).eq("id", value: tripId).run()
-    }
-
-    func photoURL(_ path: String) async -> URL? {
-        try? await db.storage.from("trip-photos").createSignedURL(path: path, expiresIn: 3600)
     }
 
     func deleteTrip(_ id: UUID) async throws {
@@ -204,9 +193,15 @@ final class AppModel {
             await refresh()
             // Someone already on the trip just opens it; newcomers get the welcome.
             if !alreadyOn { welcomeTrip = trip(id) }
-        } catch {
+        } catch let e as PostgrestError where e.message.contains("invite link not found") {
             pendingInvite = nil
             self.error = "That invite link didn't work. Ask for a new one."
+        } catch let e as PostgrestError where e.message.contains("removed from this trip") {
+            pendingInvite = nil
+            self.error = "You were removed from that trip. Ask a member to add you back."
+        } catch {
+            // Offline or a full trip: keep the token so pull-to-refresh retries the join.
+            self.error = Self.describe("Couldn't join the trip yet. Pull to retry.", error)
         }
     }
 }

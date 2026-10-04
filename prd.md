@@ -278,6 +278,8 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Test people (Debug only):** the sign-in screen has a "Test person's name" field that signs in anonymously against the local backend, so two simulators can act as two people without two Apple IDs. Anonymous sign-in is enabled only in the local config, never on the hosted project.
 - **Welcome modal after a link:** shown to newcomers. Someone already on the trip who taps its link just lands on Trips.
 - **Profiles are visible to anyone you've shared a trip with, including removed members**, so a removed member's name stays on the trip and, with keep, both sides can still see who they settle up with.
+- **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload and the `trip-photos` bucket are removed to keep the build smaller; photos can come back later.
+- **Removed members can't rejoin with a link.** Their old invite link no longer works for them. An active member can add them back from Add members; after a wipe they come back with no share in the old expenses.
 
 ### Assumed in the prototype, not yet confirmed
 - The welcome modal also appears when someone who already has the app taps an invite link.
