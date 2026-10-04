@@ -284,6 +284,8 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Expense row for your own cost:** when you paid and your share is the whole amount, the row reads "You paid $X" (the Activity wording), since "You lent $0" says nothing.
 - **Trip is locked while editing an expense.** Moving an expense between trips would change two trips' balances; delete and re-add instead.
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.
+- **Add trip shows its stamp before saving.** The stamp is generated when the form opens, so you see what the trip will look like.
+- **The + button:** a tap adds an expense (or starts a trip when you have none); a long press offers Add expense and Add trip.
 
 ### Assumed in the prototype, not yet confirmed
 - The welcome modal also appears when someone who already has the app taps an invite link.

@@ -9,6 +9,7 @@ struct TripFormView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var stamp = StampSpec.random()  // the new trip's stamp, shown before saving
     @State private var hasDates = false
     @State private var start = Date.now
     @State private var end = Date.now
@@ -24,9 +25,10 @@ struct TripFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let trip = liveTrip {
-                    Section { TripAvatar(trip: trip, size: 96).frame(maxWidth: .infinity) }.listRowBackground(Color.clear)
+                Section {
+                    StampAvatar(spec: liveTrip?.stamp ?? stamp, size: 96).frame(maxWidth: .infinity)
                 }
+                .listRowBackground(Color.clear)
 
                 Section("Name") { TextField("Trip name", text: $name) }
 
@@ -99,7 +101,7 @@ struct TripFormView: View {
                 try await app.updateTrip(t.id, name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 dismiss()
             } else {
-                created = try await app.createTrip(name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil)
+                created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
             }
         } catch { self.error = AppModel.describe("Check your connection and try again.", error) }
     }

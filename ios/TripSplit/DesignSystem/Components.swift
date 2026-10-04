@@ -31,11 +31,16 @@ struct SecondaryButtonStyle: ButtonStyle {
 struct TripAvatar: View {
     let trip: Trip
     var size: CGFloat = 56
+    var body: some View { StampAvatar(spec: trip.stamp, size: size) }
+}
 
+struct StampAvatar: View {
+    let spec: StampSpec
+    var size: CGFloat = 56
     var body: some View {
         ZStack {
-            trip.stamp.ink.tint
-            StampView(spec: trip.stamp).padding(size * 0.05)
+            spec.ink.tint
+            StampView(spec: spec).padding(size * 0.05)
         }
         .frame(width: size, height: size)
         .clipShape(.rect(cornerRadius: size > 60 ? Radius.xl : Radius.md))

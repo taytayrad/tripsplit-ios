@@ -32,7 +32,7 @@ struct TripsView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Trips")
-            .toolbar { MainHeader { if app.trips.isEmpty { addingTrip = true } else { app.addExpense() } } }
+            .toolbar { MainHeader { addingTrip = true } }
             .refreshable { await app.refresh() }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .sheet(isPresented: $addingTrip) {

@@ -15,16 +15,27 @@ struct MainView: View {
     }
 }
 
-/// The header on every main screen: balance chip (left) and Add (right).
+/// The header on every main screen: balance chip (left) and Add (right). Add logs an expense; with no trips
+/// yet it starts a trip, and otherwise a long press offers Add trip too (PRD › Navigation).
 struct MainHeader: ToolbarContent {
-    let onAdd: () -> Void
+    let onAddTrip: () -> Void
     @Environment(AppModel.self) private var app
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             BalanceChip(cents: app.headerTotal)  // Phase 4 makes it open Your Balance
         }
-        MainHeaderAdd(onAdd: onAdd)
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button { app.addExpense() } label: { Label("Add expense", systemImage: "dollarsign.circle") }
+                Button(action: onAddTrip) { Label("Add trip", systemImage: "suitcase") }
+            } label: {
+                Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill)
+            } primaryAction: {
+                if app.trips.isEmpty { onAddTrip() } else { app.addExpense() }
+            }
+            .accessibilityLabel("Add")
+        }
     }
 }
 

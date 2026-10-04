@@ -208,9 +208,9 @@ final class AppModel {
 
     // MARK: Trips
 
-    func createTrip(name: String, start: Date?, end: Date?) async throws -> Trip {
+    func createTrip(name: String, stamp: StampSpec, start: Date?, end: Date?) async throws -> Trip {
         let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
-            p_name: name, p_stamp: .random(), p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
+            p_name: name, p_stamp: stamp, p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
         )).value()
         await refresh()
         guard let trip = trip(id) else { throw URLError(.badServerResponse) }
