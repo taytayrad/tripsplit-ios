@@ -5,6 +5,7 @@ import UIKit
 /// "You owe" and "Owes you". Tapping someone pushes their screen.
 struct YourBalanceView: View {
     @Environment(AppModel.self) private var app
+    @State private var showSettled = false
 
     var body: some View {
         let balance = app.balance
@@ -21,6 +22,11 @@ struct YourBalanceView: View {
                 }
                 if !balance.owesYou.isEmpty {
                     Section { ForEach(balance.owesYou) { PersonRow(row: $0) } } header: { Text("OWES YOU").font(.footnote) }
+                }
+                if showSettled, !balance.settled.isEmpty {
+                    Section { ForEach(balance.settled) { PersonRow(row: $0) } } header: { Text("SETTLED").font(.footnote) }
+                } else if !balance.settled.isEmpty {
+                    Section { Button("Show settled people") { showSettled = true }.foregroundStyle(Color.tsTintFill) }
                 }
                 Section {} footer: {
                     Text(balance.youOwe.isEmpty && balance.owesYou.isEmpty ? "You’re settled with everyone." : "Tap someone to pay and for details.")
@@ -46,10 +52,12 @@ private struct PersonRow: View {
             HStack(spacing: Spacing.md) {
                 Text(row.name)
                 Spacer()
-                Text(Money.string(row.cents)).font(.headline).foregroundStyle(row.cents < 0 ? Color.tsOwe : Color.tsOwed)
+                Text(Money.string(row.cents)).font(.headline)
+                    .foregroundStyle(row.cents < 0 ? Color.tsOwe : row.cents > 0 ? Color.tsOwed : Color.tsSecondary)
             }
         }
-        .accessibilityLabel(row.cents < 0 ? "You owe \(row.name) \(Money.string(row.cents))" : "\(row.name) owes you \(Money.string(row.cents))")
+        .accessibilityLabel(row.cents < 0 ? "You owe \(row.name) \(Money.string(row.cents))"
+                            : row.cents > 0 ? "\(row.name) owes you \(Money.string(row.cents))" : "\(row.name), settled")
     }
 }
 
@@ -115,7 +123,7 @@ struct PersonView: View {
             logging = LogContext(direction: .pay, method: method)
         }
         .sheet(item: $logging) { context in
-            LogPaymentSheet(context: context, otherId: personId, otherName: name, max: abs(ledger.total),
+            LogPaymentSheet(context: context, otherId: personId, otherName: name, max: LogPayment.max(total: ledger.total, direction: context.direction),
                             openTrips: openTrips(direction: context.direction)) { rows in
                 keep.formUnion(rows.map(\.tripId))
                 loggedIds.formUnion(rows.map(\.paymentId))

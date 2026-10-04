@@ -253,6 +253,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Venmo** opens `venmo.com/?txn=pay&recipients=<username>&amount=<amount>&note=TripSplit`, which hands off to the Venmo app when it's installed.
 - **Apple Cash** copies the amount and opens Messages (no recipient: TripSplit never has phone numbers).
 - **Zelle** has no app of its own to open (the standalone Zelle app was discontinued; Zelle lives in bank apps). Tapping Zelle copies the amount and opens the log sheet right away: "Amount copied. Send it with Zelle in your bank’s app, then log it here."
+- **Settled people stay reachable:** Your Balance has "Show settled people" under the rows, listing everyone else you share a trip with at $0, so a payment that settled someone can still be opened and deleted by either person.
 - **Deleting a payment:** swipe left on a payment line on the person's screen. "Delete this payment?" / "It comes off your balance with Alex. Either of you can delete a payment." with Cancel and Delete.
 
 ### Expenses

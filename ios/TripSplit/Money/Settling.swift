@@ -10,15 +10,18 @@ struct BalanceSummary: Equatable {
 
     let youOwe: [Row]
     let owesYou: [Row]
+    /// Everyone else in `people`, at $0, so their screen (and a payment that settled them) stays reachable.
+    let settled: [Row]
     let total: Int
     /// Trips behind the listed rows ("Across 3 trips"). Deleted trips have no pair rows.
     let tripCount: Int
 
-    init(pairs: [PairBalance], name: (UUID) -> String) {
+    init(pairs: [PairBalance], name: (UUID) -> String, people: [UUID] = []) {
         let combined = Dictionary(grouping: pairs, by: \.otherUserId).mapValues { $0.reduce(0) { $0 + $1.cents } }.filter { $0.value != 0 }
         let rows = combined.map { Row(id: $0.key, name: name($0.key), cents: $0.value) }
         youOwe = rows.filter { $0.cents < 0 }.sorted { ($0.cents, $0.name) < ($1.cents, $1.name) }
         owesYou = rows.filter { $0.cents > 0 }.sorted { ($1.cents, $0.name) < ($0.cents, $1.name) }
+        settled = Set(people).subtracting(combined.keys).map { Row(id: $0, name: name($0), cents: 0) }.sorted { $0.name < $1.name }
         total = rows.reduce(0) { $0 + $1.cents }
         tripCount = Set(pairs.filter { $0.cents != 0 && combined[$0.otherUserId] != nil }.map(\.tripId)).count
     }
@@ -76,7 +79,9 @@ struct PersonLedger {
         }
         let known = Set(tripsNewestFirst.map(\.id))
         var unreadable: [UUID] = []
-        for id in mine.map(\.tripId) + between.map(\.tripId) where !known.contains(id) && !unreadable.contains(id) { unreadable.append(id) }
+        // From pair rows only: payments on a deleted trip stay readable, but a deleted trip has no pair rows.
+        // ponytail: a removed member's settled trip drops out too, until its name can be read (issue #12).
+        for id in mine.map(\.tripId) where !known.contains(id) && !unreadable.contains(id) { unreadable.append(id) }
         groups = tripsNewestFirst.filter { trip in trip.tripMembers.contains { $0.userId == other } }.compactMap { group($0.id, $0.name) }
             + unreadable.compactMap { group($0, Self.unreadableTripName) }
     }
@@ -141,8 +146,12 @@ enum Allocation {
 enum LogPayment {
     enum Direction { case pay, record }
 
+    /// The most that can be logged in this direction. Zero when the balance has flipped since the sheet opened.
+    static func max(total: Int, direction: Direction) -> Int { Swift.max(0, direction == .pay ? -total : total) }
+
     /// Why Log is unavailable, or nil when the amount can be logged.
     static func problem(cents: Int?, max: Int, direction: Direction, otherName: String) -> String? {
+        guard max > 0 else { return direction == .pay ? "You don’t owe \(otherName) anything now." : "\(otherName) doesn’t owe you anything now." }
         guard let cents, cents > 0 else { return "Enter an amount." }
         guard cents > max else { return nil }
         return direction == .pay ? "That’s more than the \(Money.string(max)) you owe \(otherName)."

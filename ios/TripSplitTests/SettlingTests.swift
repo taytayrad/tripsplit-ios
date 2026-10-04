@@ -61,6 +61,15 @@ struct SettlingTests {
         #expect(s.tripCount == 0)
     }
 
+    // Settled people stay reachable, so a payment that settled them can still be seen and deleted.
+    @Test func settledPeopleAreEveryoneElseYouShareATripWith() {
+        let s = BalanceSummary(pairs: [PairBalance(tripId: UUID(), otherUserId: Self.alex, cents: -2000)], name: Self.name,
+                               people: [Self.alex, Self.tyler, Self.jordan])
+        #expect(s.youOwe.map(\.name) == ["Alex"])
+        #expect(s.settled.map(\.name) == ["Jordan", "Tyler"])
+        #expect(s.settled.allSatisfy { $0.cents == 0 })
+    }
+
     @Test func tripNetsAreTheSumOfTheirPairs() {
         let t = UUID()
         let nets = BalanceSummary.tripNets([PairBalance(tripId: t, otherUserId: Self.alex, cents: 2806),
@@ -147,6 +156,15 @@ struct SettlingTests {
         #expect(ledger.groups[0].name == PersonLedger.unreadableTripName)
         #expect(ledger.groups[0].net == -2000)
         #expect(ledger.groups[0].lines.map(\.title) == ["You paid · Cash"])
+    }
+
+    // Payments on a deleted trip stay readable, but a deleted trip has no pair rows. It must not come back as
+    // "A trip you were removed from" (deleted trips' amounts are hidden).
+    @Test func aDeletedTripsPaymentsDontComeBack() {
+        let deleted = UUID()
+        let paid = Payment(id: UUID(), tripId: deleted, payerId: Self.you, payeeId: Self.alex, amountCents: 1000, method: .cash, createdAt: Self.day("2026-10-02"))
+        let ledger = PersonLedger(me: Self.you, other: Self.alex, otherName: "Alex", tripsNewestFirst: [], expenses: [], payments: [paid], pairs: [])
+        #expect(ledger.groups.isEmpty)
     }
 
     // MARK: Pay bar
@@ -238,5 +256,15 @@ struct SettlingTests {
         #expect(LogPayment.problem(cents: 9000, max: 9000, direction: .pay, otherName: "Jordan") == nil)
         #expect(LogPayment.problem(cents: nil, max: 9000, direction: .pay, otherName: "Jordan") == "Enter an amount.")
         #expect(LogPayment.problem(cents: 0, max: 9000, direction: .pay, otherName: "Jordan") == "Enter an amount.")
+    }
+
+    // The cap keeps the sheet's direction: if the balance flips while it's open, nothing is owed that way.
+    @Test func theCapFollowsTheSheetsDirection() {
+        #expect(LogPayment.max(total: -9000, direction: .pay) == 9000)
+        #expect(LogPayment.max(total: 3000, direction: .pay) == 0)
+        #expect(LogPayment.max(total: 3000, direction: .record) == 3000)
+        #expect(LogPayment.max(total: -9000, direction: .record) == 0)
+        #expect(LogPayment.problem(cents: 3000, max: 0, direction: .pay, otherName: "Jordan") == "You don’t owe Jordan anything now.")
+        #expect(LogPayment.problem(cents: 3000, max: 0, direction: .record, otherName: "Alex") == "Alex doesn’t owe you anything now.")
     }
 }
