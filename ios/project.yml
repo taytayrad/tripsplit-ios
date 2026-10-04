@@ -39,7 +39,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_ENTITLEMENTS: TripSplit/TripSplit.entitlements
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: "6818893346"
+        DEVELOPMENT_TEAM: "PHVU622P3U"
     dependencies:
       - package: Supabase
   TripSplitTests:
