@@ -54,12 +54,24 @@ enum ExpenseLine {
         return calendar.isDate(date, inSameDayAs: now) ? "Today, \(time)" : "\(date.formatted(.dateTime.month(.abbreviated).day())), \(time)"
     }
 
-    static func text(amountCents: Int, youPaid: Bool, yourShareCents: Int?) -> String? {
+    struct Part: Equatable { let label: String; let cents: Int }
+
+    /// The label ("You owe", "You lent", "You paid") and the cents it refers to; nil when none of it is yours.
+    static func parts(amountCents: Int, youPaid: Bool, yourShareCents: Int?) -> Part? {
         let share = yourShareCents ?? 0
         if youPaid {
-            return share == amountCents ? "You paid \(Money.string(amountCents))" : "You lent \(Money.string(amountCents - share))"
+            return share == amountCents ? Part(label: "You paid", cents: amountCents) : Part(label: "You lent", cents: amountCents - share)
         }
-        return share > 0 ? "You owe \(Money.string(share))" : nil
+        return share > 0 ? Part(label: "You owe", cents: share) : nil
+    }
+
+    static func text(amountCents: Int, youPaid: Bool, yourShareCents: Int?) -> String? {
+        parts(amountCents: amountCents, youPaid: youPaid, yourShareCents: yourShareCents).map { "\($0.label) \(Money.string($0.cents))" }
+    }
+
+    /// "Today", or "Oct 2" (the expense row's date).
+    static func day(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
+        calendar.isDate(date, inSameDayAs: now) ? "Today" : date.formatted(.dateTime.month(.abbreviated).day())
     }
 }
 

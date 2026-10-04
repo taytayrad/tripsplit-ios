@@ -6,7 +6,8 @@ enum ExpenseSheet: Identifiable, Hashable {
     var id: String { switch self { case .add(let t): "add-\(t)"; case .edit(let e): "edit-\(e.id)" } }
 }
 
-/// Add expense and Edit expense (Figma 09, E1). A sheet with its own stack; Paid by and Split push inside it.
+/// Add expense and Edit expense (Figma 09, E1): the amount up top, the description card, the
+/// "Paid by you and split equally" sentence, then Trip and Date. Paid by and Split push inside the sheet.
 struct ExpenseFormView: View {
     let target: ExpenseSheet
     @Environment(AppModel.self) private var app
@@ -25,6 +26,7 @@ struct ExpenseFormView: View {
     @State private var deleting: Expense?
     @State private var error: String?
     @State private var loaded = false  // onAppear fires again when Paid by or Split pops; fill the form once
+    @FocusState private var amountFocused: Bool
 
     init(target: ExpenseSheet) {
         self.target = target
@@ -42,57 +44,89 @@ struct ExpenseFormView: View {
     private var canSave: Bool {
         !description.trimmingCharacters(in: .whitespaces).isEmpty && amountCents > 0 && payer != nil && footer.isValid && !saving
     }
+    private var summary: String { "\(description.isEmpty ? "Expense" : description) · \(Money.string(amountCents))" }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    // Amount (Display/Amount, centered)
+                    HStack(spacing: 0) {
+                        Text("$")
+                        TextField("0", text: $amountText).keyboardType(.decimalPad).fixedSize().focused($amountFocused)
+                            .onChange(of: amountText) { _, new in amountText = Money.cleanAmountInput(new) }
+                    }
+                    .font(.system(size: 48, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+
+                    // Description card: icon tile + text
                     HStack(spacing: Spacing.md) {
                         Menu {
                             ForEach(ExpenseIcon.allCases, id: \.self) { i in
                                 Button { icon = i; iconOverridden = true } label: { Label(i.title, systemImage: i.symbol) }
                             }
-                        } label: { IconBadge(icon: icon, size: 40) }
+                        } label: { IconTile(icon: icon) }
+                        .tint(.primary)  // the tile's symbol is black in Figma, not the menu's accent
                         TextField("What was it for?", text: $description)
                             .onChange(of: description) { if !iconOverridden { icon = ExpenseIcon.pick(for: description) } }
                     }
-                    TextField("$0.00", text: $amountText).keyboardType(.decimalPad).font(.title2.weight(.semibold))
-                }
+                    .padding(.horizontal, Spacing.md).padding(.vertical, Spacing.sm)
+                    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.md))
 
-                Section {
-                    NavigationLink { PaidByView(members: members, selected: $payer) } label: {
-                        LabeledContent("Paid by", value: name(of: payer))
+                    // "Paid by you and split equally"
+                    HStack(spacing: 0) {
+                        Text("Paid by ")
+                        NavigationLink { PaidByView(members: members, tripName: trip?.name ?? "", selected: $payer) } label: {
+                            Text(payerWord).foregroundStyle(Color.tsTintFill)
+                        }
+                        Text(" and split ")
+                        NavigationLink {
+                            SplitView(summary: summary, tripName: trip?.name ?? "", members: members, amountCents: amountCents, kind: $splitKind, inputs: $inputs)
+                        } label: {
+                            Text(splitWord).foregroundStyle(Color.tsTintFill)
+                        }
                     }
-                    NavigationLink {
-                        SplitView(members: members, amountCents: amountCents, kind: $splitKind, inputs: $inputs)
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.xs)
+
+                    FieldLabel("TRIP")
+                    Menu {
+                        ForEach(app.trips) { t in Button(t.name) { tripId = t.id } }
                     } label: {
-                        LabeledContent("Split", value: splitSummary)
+                        FieldRow(text: trip?.name ?? "", chevron: true, dimmed: editing != nil)
                     }
-                }
+                    .disabled(editing != nil)  // moving an expense between trips would change two trips' balances
 
-                Section {
-                    Picker("Trip", selection: $tripId) {
-                        ForEach(app.trips) { Text($0.name).tag($0.id) }
-                    }
-                    .disabled(editing != nil)
-                    DatePicker("Date", selection: $date, displayedComponents: .date)
-                }
+                    FieldLabel("DATE")
+                    // Looks like the Figma field ("Today ›"); the real picker sits on top, invisible, and takes the tap.
+                    FieldRow(text: ExpenseLine.day(date), chevron: true)
+                        .overlay { DatePicker("", selection: $date, displayedComponents: .date).labelsHidden().opacity(0.001) }
 
-                if let expense = editing {
-                    Section {
-                        Button("Delete expense", role: .destructive) { deleting = expense }
-                    } footer: {
+                    if let expense = editing {
+                        Spacer(minLength: Spacing.xxxl)
+                        Button("Delete expense") { deleting = expense }
+                            .font(.headline).foregroundStyle(Color.tsOwe)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.md))
                         Text("Added by \(expense.createdBy == app.userId ? "you" : name(of: expense.createdBy)) · \(ExpenseLine.when(expense.createdAt))")
+                            .font(.footnote).foregroundStyle(Color.tsSecondary)
+                            .frame(maxWidth: .infinity)
                     }
                 }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.top, Spacing.sm)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(editing == nil ? "Add expense" : "Edit expense")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { Task { await save() } }.disabled(!canSave) }
             }
-            .onAppear(perform: load)
+            .onAppear { let first = !loaded; load(); if first, editing == nil { amountFocused = true } }
             .onChange(of: tripId) { resetSplit() }
             .deleteExpenseAlert(expense: $deleting, tripName: trip?.name ?? "", afterDelete: { dismiss() })
             .alert("Couldn’t save", isPresented: .init(get: { error != nil }, set: { if !$0 { error = nil } })) {
@@ -102,10 +136,9 @@ struct ExpenseFormView: View {
         }
     }
 
-    private var splitSummary: String {
-        let count = members.filter { (inputs[$0.userId] ?? 0) > 0 }.count
-        let kind = switch splitKind { case .equal: "Equally"; case .exact: "Exact amounts"; case .percent: "Percentages"; case .shares: "Shares" }
-        return "\(kind), \(count == 1 ? "1 person" : "\(count) people")"
+    private var payerWord: String { payer == app.userId ? "you" : name(of: payer) }
+    private var splitWord: String {
+        switch splitKind { case .equal: "equally"; case .exact: "by exact amounts"; case .percent: "by percentages"; case .shares: "by shares" }
     }
 
     private func name(of user: UUID?) -> String {
@@ -156,21 +189,53 @@ struct ExpenseFormView: View {
     }
 }
 
-/// Single select with a trailing checkmark (PRD › Paid by).
+/// "TRIP", "DATE": the small caps label over a grouped field.
+struct FieldLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View { Text(text).font(.footnote).foregroundStyle(Color.tsSecondary).padding(.top, Spacing.xs) }
+}
+
+/// The Figma Text Field component: white, 44 pt, optional chevron.
+struct FieldRow: View {
+    let text: String
+    var chevron = false
+    var dimmed = false
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Text(text).foregroundStyle(dimmed ? Color.tsSecondary : Color.primary)
+            Spacer()
+            if chevron { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.tsSecondary) }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .frame(height: 44)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.md))
+        .contentShape(.rect)
+    }
+}
+
+/// Single select with a trailing checkmark (Figma 09a).
 struct PaidByView: View {
     let members: [Member]
+    let tripName: String
     @Binding var selected: UUID?
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        List(members, id: \.userId) { m in
-            Button { selected = m.userId; dismiss() } label: {
-                HStack {
-                    Text(m.userId == app.userId ? "You" : m.profiles.displayName).foregroundStyle(.primary)
-                    Spacer()
-                    if m.userId == selected { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+        List {
+            Section {
+                ForEach(members, id: \.userId) { m in
+                    Button { selected = m.userId; dismiss() } label: {
+                        HStack {
+                            Text(m.userId == app.userId ? "You" : m.profiles.displayName).foregroundStyle(.primary)
+                            Spacer()
+                            if m.userId == selected { Image(systemName: "checkmark").foregroundStyle(Color.tsTintFill) }
+                        }
+                    }
                 }
+            } header: { Text(tripName.uppercased()).font(.footnote) } footer: {
+                Text("Anyone on the trip. They can be outside the split.")
             }
         }
         .navigationTitle("Paid by")
@@ -178,39 +243,45 @@ struct PaidByView: View {
     }
 }
 
-struct IconBadge: View {
+/// The Figma Icon Tile: 36 pt, gray fill, the expense's SF Symbol.
+struct IconTile: View {
     let icon: ExpenseIcon
-    var size: CGFloat = 40
     var body: some View {
         Image(systemName: icon.symbol)
-            .font(.system(size: size * 0.45, weight: .medium))
-            .foregroundStyle(Color.tsTintFill)
-            .frame(width: size, height: size)
-            .background(Color.tsTintFill.opacity(0.12), in: .rect(cornerRadius: Radius.md))
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(.primary)
+            .frame(width: 36, height: 36)
+            .background(Color(.systemGray5), in: .rect(cornerRadius: Radius.sm))
     }
 }
 
-/// One expense on the trip: icon, title, date, and only your part (PRD › Trips).
+/// One expense on the trip (Figma Expense Row): icon, title, "Paid by you · Today", and only your part
+/// as a gray label over a colored amount.
 struct ExpenseRow: View {
     let expense: Expense
     let trip: Trip
     @Environment(AppModel.self) private var app
 
     var body: some View {
-        let line = ExpenseLine.text(amountCents: expense.amountCents, youPaid: expense.payerId == app.userId, yourShareCents: expense.share(of: app.userId))
+        let youPaid = expense.payerId == app.userId
+        let part = ExpenseLine.parts(amountCents: expense.amountCents, youPaid: youPaid, yourShareCents: expense.share(of: app.userId))
+        let payer = youPaid ? "you" : trip.tripMembers.first { $0.userId == expense.payerId }?.profiles.displayName ?? "someone"
         HStack(spacing: Spacing.md) {
-            IconBadge(icon: expense.icon)
+            IconTile(icon: expense.icon)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(expense.description).font(.body.weight(.medium)).lineLimit(1)
-                Text(expense.date.formatted(.dateTime.month(.abbreviated).day())).font(.footnote).foregroundStyle(Color.tsSecondary)
+                Text(expense.description).lineLimit(1)
+                Text("Paid by \(payer) · \(ExpenseLine.day(expense.date))").font(.footnote).foregroundStyle(Color.tsSecondary)
             }
             Spacer()
-            if let line {
-                Text(line).font(.subheadline.weight(.semibold))
-                    .foregroundStyle(line.hasPrefix("You owe") ? Color.tsOwe : line.hasPrefix("You lent") ? Color.tsOwed : Color.tsSecondary)
+            if let part {
+                VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                    Text(part.label).font(.footnote).foregroundStyle(Color.tsSecondary)
+                    Text(Money.string(part.cents)).font(.headline)
+                        .foregroundStyle(part.label == "You owe" ? Color.tsOwe : part.label == "You lent" ? Color.tsOwed : Color.tsSecondary)
+                }
             }
         }
-        .padding(.vertical, Spacing.xs)
+        .padding(.vertical, Spacing.xxs)
         .accessibilityElement(children: .combine)
     }
 }
@@ -246,6 +317,16 @@ private struct DeleteExpenseAlert: ViewModifier {
 extension Money {
     /// "84.20" for a text field; "90" when whole.
     static func plain(_ cents: Int) -> String { cents % 100 == 0 ? "\(cents / 100)" : String(format: "%d.%02d", cents / 100, cents % 100) }
+    /// What the amount field keeps as you type (or paste): digits, one point, at most two decimals.
+    static func cleanAmountInput(_ text: String) -> String {
+        var out = ""; var seenPoint = false; var decimals = 0
+        for c in text {
+            if c.isNumber { if seenPoint { guard decimals < 2 else { continue }; decimals += 1 }; out.append(c) }
+            else if c == ".", !seenPoint { seenPoint = true; out.append(c) }
+        }
+        return out
+    }
+
     /// Cents from "$84.20", "84.2", "90"; nil when it isn't money or has more than two decimals.
     static func cents(from text: String) -> Int? {
         let cleaned = text.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)

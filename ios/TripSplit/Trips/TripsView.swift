@@ -26,6 +26,7 @@ struct TripsView: View {
                             Button(showSettled ? "Hide settled trips" : "Show settled trips") { showSettled.toggle() }
                                 .font(.subheadline)
                         }
+                        Button("Add trip") { addingTrip = true }.font(.subheadline)
                     }
                     .padding(Spacing.lg)
                 }

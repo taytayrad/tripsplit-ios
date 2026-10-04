@@ -16,6 +16,11 @@ struct ExpenseLogicTests {
         #expect(ExpenseIcon.pick(for: description) == expected)
     }
 
+    @Test(arguments: [("84.20", "84.20"), ("Costco84.20", "84.20"), ("1.2.3", "1.23"), ("5.999", "5.99"), ("$90", "90")])
+    func amountFieldKeepsOnlyMoney(_ typed: String, _ kept: String) {
+        #expect(Money.cleanAmountInput(typed) == kept)
+    }
+
     @Test func addedLineUsesTodayOrTheDate() {
         let cal = Calendar(identifier: .gregorian)
         let now = Self.day("2026-10-04")

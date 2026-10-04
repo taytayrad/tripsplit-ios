@@ -16,37 +16,40 @@ struct MainView: View {
 }
 
 /// The header on every main screen: balance chip (left) and Add (right). Add logs an expense; with no trips
-/// yet it starts a trip, and otherwise a long press offers Add trip too (PRD › Navigation).
+/// yet it starts a trip. Another trip starts from the Add trip button under the trip cards.
 struct MainHeader: ToolbarContent {
     let onAddTrip: () -> Void
     @Environment(AppModel.self) private var app
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            BalanceChip(cents: app.headerTotal)  // Phase 4 makes it open Your Balance
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarLeading) { chip }.sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) { add }.sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarLeading) { chip }
+            ToolbarItem(placement: .topBarTrailing) { add }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Button { app.addExpense() } label: { Label("Add expense", systemImage: "dollarsign.circle") }
-                Button(action: onAddTrip) { Label("Add trip", systemImage: "suitcase") }
-            } label: {
-                Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill)
-            } primaryAction: {
-                if app.trips.isEmpty { onAddTrip() } else { app.addExpense() }
-            }
-            .accessibilityLabel("Add")
-        }
+    }
+
+    private var chip: some View { BalanceChip(cents: app.headerTotal) }  // Phase 4 makes it open Your Balance
+
+    private var add: some View {
+        AddButton(onAddTrip: onAddTrip)
     }
 }
 
-/// The Add button alone, for screens that already have a leading control (trip detail's back button).
-struct MainHeaderAdd: ToolbarContent {
-    let onAdd: () -> Void
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button(action: onAdd) { Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill) }
-                .accessibilityLabel("Add")
+/// Tap adds an expense, or starts a trip when you have none (Figma Main Header).
+private struct AddButton: View {
+    let onAddTrip: () -> Void
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Button {
+            if app.trips.isEmpty { onAddTrip() } else { app.addExpense() }
+        } label: {
+            Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill)
         }
+        .accessibilityLabel("Add")
     }
 }
 

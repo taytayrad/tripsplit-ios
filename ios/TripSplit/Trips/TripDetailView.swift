@@ -27,7 +27,7 @@ struct TripDetailView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
                 }
 
-                Section("Expenses") {
+                Section {
                     if expenses.isEmpty {
                         VStack(spacing: Spacing.md) {
                             Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
@@ -42,17 +42,15 @@ struct TripDetailView: View {
                                 .onTapGesture { app.expenseSheet = .edit(expense) }
                                 .swipeActions { Button("Delete", role: .destructive) { deleting = expense } }
                         }
+                        Button("Add expense") { app.addExpense(on: trip.id) }.foregroundStyle(Color.tsTintFill)
                     }
-                }
+                } header: { Text("EXPENSES").font(.footnote) }
             }
             .listSectionSpacing(.compact)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } }
-                MainHeaderAdd { app.addExpense(on: trip.id) }
-            }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
             .sheet(isPresented: $editing) { TripFormView(mode: .edit(trip)) }
             .deleteExpenseAlert(expense: $deleting, tripName: trip.name)
         } else {

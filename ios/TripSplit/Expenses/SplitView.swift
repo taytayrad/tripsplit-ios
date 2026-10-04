@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Equally, Exact amounts, Percentages, Shares (Figma 09b–09e). The running total is pinned above the
-/// keyboard, and Done stays unavailable until the split is valid (PRD › Prototype decisions › Splits).
+/// Equally, Exact, Percent, Shares (Figma 09b–09e). The summary sits under the title, the running total is
+/// pinned above the keyboard, and Done stays unavailable until the split is valid (PRD › Splits).
 struct SplitView: View {
+    let summary: String
+    let tripName: String
     let members: [Member]
     let amountCents: Int
     @Binding var kind: SplitKind
@@ -18,13 +20,16 @@ struct SplitView: View {
     var body: some View {
         List {
             Section {
-                Picker("Split", selection: $kind) {
-                    Text("Equally").tag(SplitKind.equal)
-                    Text("Exact").tag(SplitKind.exact)
-                    Text("Percent").tag(SplitKind.percent)
-                    Text("Shares").tag(SplitKind.shares)
+                VStack(spacing: Spacing.sm) {
+                    Text(summary).font(.headline).frame(maxWidth: .infinity)
+                    Picker("Split", selection: $kind) {
+                        Text("Equally").tag(SplitKind.equal)
+                        Text("Exact").tag(SplitKind.exact)
+                        Text("Percent").tag(SplitKind.percent)
+                        Text("Shares").tag(SplitKind.shares)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
             }
@@ -33,28 +38,27 @@ struct SplitView: View {
                     row(for: m)
                 }
             } header: {
-                if kind == .equal, someoneUnchecked {
-                    HStack { Spacer(); Button("Select all") { for m in members { inputs[m.userId] = 1 } }.font(.footnote) }
+                HStack {
+                    Text(tripName.uppercased()).font(.footnote)
+                    Spacer()
+                    if kind == .equal, someoneUnchecked {
+                        Button("Select all") { for m in members { inputs[m.userId] = 1 } }.font(.subheadline).textCase(nil)
+                    }
                 }
             }
         }
-        .navigationTitle(title)
+        .listSectionSpacing(.compact)
+        .navigationTitle("Split")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden()
         .toolbar { Button("Done") { dismiss() }.fontWeight(.semibold).disabled(!footer.isValid) }
         .safeAreaInset(edge: .bottom) {
             Text(footer.text)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(footer.isValid ? Color.primary : Color.tsOwe)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(.bar)
         }
         .onChange(of: kind) { _, new in reset(for: new) }
         .onAppear { for m in members { text[m.userId] = display(inputs[m.userId] ?? 0) } }
-    }
-
-    private var title: String {
-        switch kind { case .equal: "Split equally"; case .exact: "Exact amounts"; case .percent: "Percentages"; case .shares: "Shares" }
     }
 
     @ViewBuilder private func row(for m: Member) -> some View {
@@ -69,18 +73,26 @@ struct SplitView: View {
                     inputs[m.userId] = on ? 1 : 0
                 }))
         default:
-            HStack {
+            HStack(spacing: Spacing.md) {
                 Text(name)
                 Spacer()
-                if kind == .exact { Text("$").foregroundStyle(Color.tsSecondary) }
-                TextField(kind == .shares ? "1" : "0", text: .init(
-                    get: { text[m.userId] ?? "" },
-                    set: { text[m.userId] = $0; inputs[m.userId] = parse($0) }))
-                    .keyboardType(kind == .shares ? .numberPad : .decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 90)
-                    .focused($focused, equals: m.userId)
-                if kind == .percent { Text("%").foregroundStyle(Color.tsSecondary) }
+                // The Figma Value Box: gray, 96 × 32, the unit inside, a tint border while editing.
+                HStack(spacing: 0) {
+                    if kind == .exact { Text("$") }
+                    TextField(kind == .shares ? "1" : kind == .exact ? "0.00" : "0", text: .init(
+                        get: { text[m.userId] ?? "" },
+                        set: { text[m.userId] = $0; inputs[m.userId] = parse($0) }))
+                        .keyboardType(kind == .shares ? .numberPad : .decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .focused($focused, equals: m.userId)
+                    if kind == .percent { Text("%") }
+                }
+                .padding(.horizontal, Spacing.sm)
+                .frame(width: 96, height: 32)
+                .background(Color(.systemGray5), in: .rect(cornerRadius: Radius.sm))
+                .overlay(RoundedRectangle(cornerRadius: Radius.sm).stroke(Color.tsTintFill, lineWidth: focused == m.userId ? 2 : 0))
+                .contentShape(.rect)
+                .onTapGesture { focused = m.userId }
             }
         }
     }
