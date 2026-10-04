@@ -47,3 +47,9 @@ struct PayMethodsUpdate: Encodable {
         try c.encode(has_apple_cash, forKey: .has_apple_cash)
     }
 }
+
+struct RemoveMemberArgs: Encodable, Sendable {
+    let p_trip: UUID
+    let p_user: UUID
+    let p_mode: String
+}

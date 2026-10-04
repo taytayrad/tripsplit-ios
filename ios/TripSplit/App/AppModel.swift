@@ -177,8 +177,7 @@ final class AppModel {
     }
 
     func removeMember(_ user: UUID, from trip: UUID, keepBalance: Bool) async throws {
-        struct Args: Encodable { let p_trip: UUID; let p_user: UUID; let p_mode: String }
-        try await db.rpc("remove_member", params: Args(p_trip: trip, p_user: user, p_mode: keepBalance ? "keep" : "wipe")).execute()
+        try await db.rpc("remove_member", params: RemoveMemberArgs(p_trip: trip, p_user: user, p_mode: keepBalance ? "keep" : "wipe")).execute()
         await refresh()
     }
 
