@@ -28,12 +28,11 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
+                    // The label closure isn't main-actor isolated, so pass it plain values.
+                    let data = photoData, trip = liveTrip
+                    let title = editing?.imagePath == nil && photoData == nil ? "Add a photo" : "Change photo"
                     PhotosPicker(selection: $photoItem, matching: .images) {
-                        VStack(spacing: Spacing.sm) {
-                            photoPreview.frame(width: 96, height: 96).clipShape(.rect(cornerRadius: Radius.xl))
-                            Text(editing?.imagePath == nil && photoData == nil ? "Add a photo" : "Change photo")
-                        }
-                        .frame(maxWidth: .infinity)
+                        PhotoPickerLabel(photoData: data, trip: trip, title: title)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -96,16 +95,6 @@ struct TripFormView: View {
         }
     }
 
-    @ViewBuilder private var photoPreview: some View {
-        if let photoData, let image = UIImage(data: photoData) {
-            Image(uiImage: image).resizable().scaledToFill()
-        } else if let trip = liveTrip {
-            TripAvatar(trip: trip, size: 96)
-        } else {
-            ZStack { Color(.systemGray5); Image(systemName: "camera").font(.title).foregroundStyle(Color.tsSecondary) }
-        }
-    }
-
     private func load() {
         guard let t = editing else { return }
         name = t.name
@@ -138,6 +127,30 @@ struct TripFormView: View {
     private func deleteTrip() async {
         guard let t = editing else { return }
         do { try await app.deleteTrip(t.id); dismiss() } catch { self.error = AppModel.describe("Couldn’t delete the trip. Try again.", error) }
+    }
+}
+
+private struct PhotoPickerLabel: View {
+    let photoData: Data?
+    let trip: Trip?
+    let title: String
+
+    var body: some View {
+        VStack(spacing: Spacing.sm) {
+            preview.frame(width: 96, height: 96).clipShape(.rect(cornerRadius: Radius.xl))
+            Text(title)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var preview: some View {
+        if let photoData, let image = UIImage(data: photoData) {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else if let trip {
+            TripAvatar(trip: trip, size: 96)
+        } else {
+            ZStack { Color(.systemGray5); Image(systemName: "camera").font(.title).foregroundStyle(Color.tsSecondary) }
+        }
     }
 }
 
