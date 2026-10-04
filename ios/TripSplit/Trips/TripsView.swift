@@ -32,7 +32,7 @@ struct TripsView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Trips")
-            .toolbar { MainHeader { addingTrip = true } }  // ponytail: Add opens Add trip until Phase 3's expense form
+            .toolbar { MainHeader { if app.trips.isEmpty { addingTrip = true } else { app.addExpense() } } }
             .refreshable { await app.refresh() }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .sheet(isPresented: $addingTrip) {

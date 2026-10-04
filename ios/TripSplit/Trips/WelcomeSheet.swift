@@ -29,7 +29,7 @@ struct WelcomeSheet: View {
             Text(meta).font(.subheadline).foregroundStyle(Color.tsSecondary).multilineTextAlignment(.center)
             Spacer().frame(height: Spacing.md)
             Button("View Trips") { dismiss() }.buttonStyle(PrimaryButtonStyle())
-            Button("Add expense") { dismiss() }.buttonStyle(SecondaryButtonStyle())  // ponytail: opens the expense form in Phase 3
+            Button("Add expense") { dismiss(); app.addExpense(on: trip.id) }.buttonStyle(SecondaryButtonStyle())
         }
         .padding([.horizontal, .bottom], Spacing.xl)
         .padding(.top, Spacing.sm)

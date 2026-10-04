@@ -11,6 +11,7 @@ struct MainView: View {
             ProfileTab().tabItem { Label("Profile", systemImage: "person.crop.circle") }           // Phase 5 fills this in
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
+        .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
     }
 }
 
@@ -23,6 +24,14 @@ struct MainHeader: ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
             BalanceChip(cents: app.headerTotal)  // Phase 4 makes it open Your Balance
         }
+        MainHeaderAdd(onAdd: onAdd)
+    }
+}
+
+/// The Add button alone, for screens that already have a leading control (trip detail's back button).
+struct MainHeaderAdd: ToolbarContent {
+    let onAdd: () -> Void
+    var body: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button(action: onAdd) { Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill) }
                 .accessibilityLabel("Add")

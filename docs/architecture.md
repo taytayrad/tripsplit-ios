@@ -39,7 +39,6 @@ flowchart TB
         auth["Auth<br/>Sign in with Apple (no phone)"]
         db[("Postgres<br/>tables, RLS, RPC functions,<br/>pair_balances view")]
         rt["Realtime<br/>row change streams"]
-        storage["Storage<br/>trip photos"]
         fnPush["Edge function: push<br/>activity event → APNs"]
         fnLink["Edge function: invite<br/>/invite/:token redirect page"]
     end
@@ -50,7 +49,6 @@ flowchart TB
     app -- "sign in" --> auth
     app -- "RPC writes, balance reads" --> db
     app -- "subscribe to trip rows" --> rt
-    app -- "upload and fetch photos" --> storage
     db -- "changes" --> rt
     db -- "database webhook on activity_events insert" --> fnPush
     fnPush --> apns
@@ -65,7 +63,6 @@ flowchart TB
 | **Realtime** | Pushes row changes so every member's screens update in close to real time. |
 | **Edge function: push** | On each `activity_events` insert, finds affected members (event matrix in [`events.md`](events.md)), checks their preferences, skips the actor, sends APNs. |
 | **Edge function: invite** | Serves the invite link page, which opens `tripsplit://join/:token`. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
-| **Storage** | Trip photos. The default trip image is the generated stamp, drawn in-app from `trips.stamp`. |
 
 ## Key choices
 

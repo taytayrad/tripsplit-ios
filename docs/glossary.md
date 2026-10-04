@@ -25,7 +25,7 @@ One meaning per word. Use these terms in code, copy, and conversation. Code name
 | **Person screen** | One person's combined balance, a trip group per shared trip, and the pay bar. |
 | **Pay bar** | Bottom bar on a person screen: shared pay apps plus Cash, or Record a Payment. |
 | **Log sheet** | The single sheet where every payment is logged, prefilled and editable. |
-| **Stamp** | A trip's generated, wordless, single-ink graphic (shape, glyph, ink, rotation, offset). The trip avatar when there's no photo. |
+| **Stamp** | A trip's generated, wordless, single-ink graphic (shape, glyph, ink, rotation, offset). The trip avatar. |
 | **Ink** | A stamp color: blue, green, red, purple, orange, teal. |
 | **Activity event** (`activity_event`) | An immutable record of something that happened on a trip, shown in Activity. |
 | **Dollar line** | The line under an Activity statement saying how that event changed *your* money ("You owe $36"). |

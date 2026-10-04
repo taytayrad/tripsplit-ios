@@ -29,7 +29,6 @@ erDiagram
     trips {
         uuid id PK
         text name
-        text image_path "nullable, Supabase Storage"
         jsonb stamp "shape, glyph, ink, rotation, offsetX, offsetY"
         date start_date "nullable"
         date end_date "nullable"
@@ -116,13 +115,15 @@ Every multi-row money write is one function in one transaction, so invariants ho
 
 | Function | Does |
 |---|---|
-| `create_trip(name, dates, image?)` | inserts trip with generated stamp and invite token, adds creator as member, logs `trip_created` |
-| `join_trip(invite_token)` | adds caller as member, or no-op if already a member; logs `member_joined` |
+| `create_trip(name, stamp, dates)` | inserts trip with generated stamp and invite token, adds creator as member, logs `trip_created` |
+| `join_trip(invite_token)` | adds caller as member, or no-op if already a member; refused for someone removed from the trip; logs `member_joined` |
+| `add_member(trip, user)` | adds someone you already share a trip with (including a removed member, who comes back with no share in old expenses); logs `member_joined` |
+| `invite_preview(invite_token)` | trip name, inviter, and stamp for the sign-in screen; the one function anon may call |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
 | `delete_expense(id)` | hard-deletes expense and shares, logs `expense_deleted` with deltas |
-| `log_payment(other_user, amount_cents, direction, method, request_id)` | `direction` is `pay` (you pay them) or `record` (they paid you). Rejects amounts above what's owed, allocates oldest trip first, inserts one payment per trip, logs `payment_logged` per row, and returns the rows. Retrying a `request_id` returns the existing rows |
-| `delete_payment(id)` | soft-deletes, logs `payment_deleted` |
-| `remove_member(trip, user, keep \| wipe)` | marks removal; for wipe, rewrites shares (see money-rules › Wipe) |
+| `log_payment(other_user, amount_cents, direction, method, request_id)` | `direction` is `pay` (you pay them) or `record` (they paid you). Rejects amounts above what's owed, allocates oldest trip first, inserts one payment per trip, logs `payment_logged` per row, and returns the rows. Retrying a `request_id` returns the existing rows (only to the person who logged it); if balances changed mid-allocation it fails and nothing is written |
+| `delete_payment(id)` | soft-deletes, logs `payment_deleted`; refused on a deleted trip so undelete restores it exactly |
+| `remove_member(trip, user, keep \| wipe)` | marks removal; for wipe, rewrites shares and stores the expense as an exact split (see money-rules › Wipe) |
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
 
 ## Reads (calculated)

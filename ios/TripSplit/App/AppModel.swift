@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+
 import Supabase
 import UserNotifications
 
@@ -22,6 +23,19 @@ final class AppModel {
     /// Set after joining by link; drives the welcome modal.
     var welcomeTrip: Trip?
     var error: String?
+    /// Expenses on every trip you're on, newest first.
+    var expenses: [Expense] = []
+    /// The expense form, when it's open.
+    var expenseSheet: ExpenseSheet?
+    /// The trip you joined most recently by link; the expense form starts there (PRD › Default trip after an invite).
+    private var justJoinedTrip: UUID?
+    private var lastExpenseTrip: UUID? {
+        get { UserDefaults.standard.string(forKey: "lastExpenseTrip").flatMap(UUID.init) }
+        set { UserDefaults.standard.set(newValue?.uuidString, forKey: "lastExpenseTrip") }
+    }
+    private var realtime: RealtimeChannelV2?
+    private var realtimeSubscriptions: [RealtimeSubscription] = []  // dropping a token removes its callback
+    private var refreshTask: Task<Void, Never>?
 
     private let db = Backend.client
 
@@ -45,11 +59,13 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []
+                profile = nil; trips = []; expenses = []
                 stage = .signedOut
+                await stopRealtime()
                 await loadInvitePreview()
             } else {
                 await afterSignIn()
+                await startRealtime()
             }
         }
     }
@@ -131,12 +147,64 @@ final class AppModel {
             async let n: [TripNet] = db.rpc("my_trip_nets").value()
             async let h: Int = db.rpc("my_header_total").value()
             async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).value()
-            (trips, nets, headerTotal, people) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p)
+            async let e: [Expense] = db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")
+                .order("spent_on", ascending: false).order("created_at", ascending: false).value()
+            (trips, nets, headerTotal, people, expenses) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p, e)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
+    func expenses(on trip: UUID) -> [Expense] { expenses.filter { $0.tripId == trip } }
+
+    // MARK: Realtime
+
+    /// Any change on a money table re-queries everything, coalesced so a burst of rows is one refresh.
+    private func startRealtime() async {
+        guard realtime == nil else { return }
+        let channel = db.channel("changes")
+        for table in ["trips", "trip_members", "expenses", "expense_shares", "payments", "activity_events"] {
+            realtimeSubscriptions.append(channel.onPostgresChange(AnyAction.self, schema: "public", table: table) { [weak self] _ in
+                Task { @MainActor in self?.scheduleRefresh() }
+            })
+        }
+        realtime = channel
+        do { try await channel.subscribeWithError() } catch { print("realtime subscribe failed:", error) }
+    }
+
+    private func stopRealtime() async {
+        if let realtime { await db.removeChannel(realtime) }
+        realtime = nil; realtimeSubscriptions = []
+    }
+
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await refresh()
+        }
+    }
+
+    // MARK: Expenses
+
+    /// Opens the form on `trip`, or on the default trip (PRD › Expenses) when nil.
+    func addExpense(on trip: UUID? = nil) {
+        guard let id = trip ?? DefaultTrip.choose(justJoined: justJoinedTrip, lastUsed: lastExpenseTrip, tripsNewestFirst: trips.map(\.id)) else { return }
+        expenseSheet = .add(tripId: id)
+    }
+
+    func saveExpense(_ args: SaveExpenseArgs) async throws {
+        let _: UUID = try await db.rpc("save_expense", params: args).value()
+        lastExpenseTrip = args.p_trip
+        justJoinedTrip = nil
+        await refresh()
+    }
+
+    func deleteExpense(_ id: UUID) async throws {
+        try await db.rpc("delete_expense", params: ["p_expense": id]).run()
+        await refresh()
+    }
 
     // MARK: Trips
 
@@ -192,7 +260,7 @@ final class AppModel {
             pendingInvite = nil; invitePreview = nil
             await refresh()
             // Someone already on the trip just opens it; newcomers get the welcome.
-            if !alreadyOn { welcomeTrip = trip(id) }
+            if !alreadyOn { welcomeTrip = trip(id); justJoinedTrip = id }
         } catch let e as PostgrestError where e.message.contains("invite link not found") {
             pendingInvite = nil
             self.error = "That invite link didn't work. Ask for a new one."

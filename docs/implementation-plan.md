@@ -72,14 +72,14 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 2: Accounts and trips
 
-**Status: done in the Phase 2 PR:** 95 pgTAP assertions, 22 Swift tests, and the two-simulator exit test run with Debug test people (real Sign in with Apple needs each simulator signed into an Apple Account).
+**Status: done in PR #4:** 95 pgTAP assertions, 22 Swift tests, and the two-simulator exit test run with Debug test people (real Sign in with Apple needs each simulator signed into an Apple Account).
 
 **Build**
 - Add `supabase-swift` (pin versions so `IssueReporting` resolves once); build the client from `Backend.url` and `Backend.publishableKey`.
 - Sign in with Apple through Supabase Auth (no phone number); profile creation.
 - Onboarding: the notification explainer, then the system prompt; pay methods with Venmo username.
 - Trips tab: empty state with three stamps, trip cards, hiding settled trips plus "Show settled trips". Tab bar, and the header with balance chip (showing $0 until phase 4) and Add.
-- Add trip and edit trip: name, generated stamp, optional photo (Storage), dates; members list, swipe-to-remove with the keep-or-wipe alert; delete trip.
+- Add trip and edit trip: name, generated stamp, dates; members list, swipe-to-remove with the keep-or-wipe alert; delete trip.
 - Trip detail: avatar, chips, balance block (wired in phase 4), empty expenses.
 - Invite: share sheet with link; `invite` edge function redirect page; `join_trip`; welcome modal ("Taylor added you to a trip!"); invite context on sign in.
 
@@ -89,6 +89,8 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 - Removing a member shows the keep-or-wipe choice and calls `remove_member` with that choice.
 
 ## Phase 3: Expenses
+
+**Status: done in the Phase 3 PR:** 101 pgTAP assertions, 34 Swift tests, realtime verified on two simulators. Also carried the architectural-review fixes and the stamps-only decision (trip photos removed).
 
 **Build**
 - Expense form as a sheet: decimal pad amount, description with keyword icon (tap to override), "Paid by you and split equally" controls, trip picker (default trip rules, including preselecting a trip you just joined), date.

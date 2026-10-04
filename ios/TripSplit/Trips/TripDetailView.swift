@@ -5,35 +5,56 @@ struct TripDetailView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
+    @State private var deleting: Expense?
 
     var body: some View {
         if let trip = app.trip(tripId) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    HStack(spacing: Spacing.md) {
-                        TripAvatar(trip: trip, size: 64)
-                        Text(trip.name).font(.largeTitle.bold())
+            let expenses = app.expenses(on: trip.id)
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        HStack(spacing: Spacing.md) {
+                            TripAvatar(trip: trip, size: 64)
+                            Text(trip.name).font(.largeTitle.bold())
+                        }
+                        HStack(spacing: Spacing.sm) {
+                            if let start = trip.start, let end = trip.end { Chip(text: DayFormat.range(start, end)) }
+                            Chip(text: trip.members.count == 1 ? "1 member" : "\(trip.members.count) members")
+                        }
+                        BalanceBlock(cents: app.nets[trip.id] ?? 0)
                     }
-                    HStack(spacing: Spacing.sm) {
-                        if let start = trip.start, let end = trip.end { Chip(text: DayFormat.range(start, end)) }
-                        Chip(text: trip.members.count == 1 ? "1 member" : "\(trip.members.count) members")
-                    }
-                    BalanceBlock(cents: app.nets[trip.id] ?? 0)
-                    Text("EXPENSES").font(.footnote).foregroundStyle(Color.tsSecondary)
-                    VStack(spacing: Spacing.md) {
-                        Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
-                        Button("Add expense") {}.buttonStyle(PrimaryButtonStyle()).disabled(true)  // Phase 3
-                    }
-                    .padding(Spacing.lg)
-                    .frame(maxWidth: .infinity)
-                    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.md))
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
                 }
-                .padding(Spacing.lg)
+
+                Section("Expenses") {
+                    if expenses.isEmpty {
+                        VStack(spacing: Spacing.md) {
+                            Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
+                            Button("Add expense") { app.addExpense(on: trip.id) }.buttonStyle(PrimaryButtonStyle())
+                        }
+                        .padding(.vertical, Spacing.sm)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        ForEach(expenses) { expense in
+                            ExpenseRow(expense: expense, trip: trip)
+                                .contentShape(.rect)
+                                .onTapGesture { app.expenseSheet = .edit(expense) }
+                                .swipeActions { Button("Delete", role: .destructive) { deleting = expense } }
+                        }
+                    }
+                }
             }
+            .listSectionSpacing(.compact)
+            .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("Edit") { editing = true } }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } }
+                MainHeaderAdd { app.addExpense(on: trip.id) }
+            }
             .sheet(isPresented: $editing) { TripFormView(mode: .edit(trip)) }
+            .deleteExpenseAlert(expense: $deleting, tripName: trip.name)
         } else {
             // The trip was deleted (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }
