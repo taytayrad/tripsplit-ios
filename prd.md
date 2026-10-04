@@ -273,6 +273,11 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 ### Build decisions
 - **Stamp glyphs in code are SF Symbols** (road.lanes, house, cart, airplane, beach.umbrella, mountain.2, tent, sailboat, sun.max), so they get system weights, accessibility, and dark mode for free. The Figma Stamp Glyph components use the same SF Symbol vectors, so design and code match. Border shapes are drawn in SwiftUI, and their stroke widths scale with the stamp's size.
 - **Color tokens** ship as an asset catalog with light and dark values from Figma. Backgrounds, separators, and primary text use iOS system colors directly. Secondary text uses `tsSecondary` (#6C6C70 light) rather than the system's translucent gray, to pass AA contrast.
+- **Backends:** Debug builds talk to the local Supabase (`supabase start`); Release builds talk to the hosted project.
+- **Invite links** are the `invite` edge function's page (`…/functions/v1/invite/<token>`), which opens the app at `tripsplit://join/<token>`. A custom URL scheme until there's a domain for Universal Links.
+- **Test people (Debug only):** the sign-in screen has a "Test person's name" field that signs in anonymously against the local backend, so two simulators can act as two people without two Apple IDs. Anonymous sign-in is enabled only in the local config, never on the hosted project.
+- **Welcome modal after a link:** shown to newcomers. Someone already on the trip who taps its link just lands on Trips.
+- **Profiles are visible to anyone you've shared a trip with, including removed members**, so a removed member's name stays on the trip and, with keep, both sides can still see who they settle up with.
 
 ### Assumed in the prototype, not yet confirmed
 - The welcome modal also appears when someone who already has the app taps an invite link.

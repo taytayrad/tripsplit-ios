@@ -54,7 +54,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 1: Money core (backend, test-first)
 
-**Status: done in PR #3** (pending merge): 82 pgTAP assertions and the Swift split tests.
+**Status: done in PR #3:** 82 pgTAP assertions and the Swift split tests.
 
 **Build**, in this order, with tests written before each function:
 1. Migrations for every table in `data-model.md`, with constraints, the 20-member trigger, and the share-sum trigger.
@@ -71,6 +71,8 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 - Retrying `log_payment` with the same `request_id` creates nothing new.
 
 ## Phase 2: Accounts and trips
+
+**Status: done in the Phase 2 PR:** 95 pgTAP assertions, 22 Swift tests, and the two-simulator exit test run with Debug test people (real Sign in with Apple needs each simulator signed into an Apple Account).
 
 **Build**
 - Add `supabase-swift` (pin versions so `IssueReporting` resolves once); build the client from `Backend.url` and `Backend.publishableKey`.

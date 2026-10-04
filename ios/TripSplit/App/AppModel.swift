@@ -1,0 +1,213 @@
+import Foundation
+import Observation
+import Supabase
+import UserNotifications
+
+/// App state and every backend call. Views read from it and call its methods.
+@MainActor @Observable
+final class AppModel {
+    enum Stage: Equatable { case loading, signedOut, notifications, payMethods, ready }
+
+    var stage: Stage = .loading
+    var profile: Profile?
+    var trips: [Trip] = []
+    var nets: [UUID: Int] = [:]
+    var headerTotal = 0
+    /// People you share a trip with ("On TripSplit").
+    var people: [PersonName] = []
+    var pendingInvite: String? {
+        didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite") }
+    }
+    var invitePreview: InvitePreview?
+    /// Set after joining by link; drives the welcome modal.
+    var welcomeTrip: Trip?
+    var error: String?
+
+    private let db = Backend.client
+
+    /// A user-facing message; Debug builds append the underlying error to speed up fixes.
+    static func describe(_ message: String, _ error: Error) -> String {
+        #if DEBUG
+        return message + "\n\n" + String(describing: error)
+        #else
+        return message
+        #endif
+    }
+    var userId: UUID? { db.auth.currentUser?.id }
+
+    init() {
+        pendingInvite = UserDefaults.standard.string(forKey: "pendingInvite")
+    }
+
+    // MARK: Session
+
+    func start() async {
+        for await (event, session) in db.auth.authStateChanges {
+            guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
+            if session == nil {
+                profile = nil; trips = []
+                stage = .signedOut
+                await loadInvitePreview()
+            } else {
+                await afterSignIn()
+            }
+        }
+    }
+
+    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents?) async {
+        do {
+            try await db.auth.signInWithIdToken(credentials: .init(provider: .apple, idToken: idToken, nonce: nonce))
+            // Apple shares the name only on the very first sign-in.
+            if let name = fullName.map({ PersonNameComponentsFormatter().string(from: $0) }), !name.isEmpty,
+               let id = userId {
+                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).execute()
+            }
+        } catch { self.error = "Couldn't sign in. Try again." }
+    }
+
+    func signOut() async { try? await db.auth.signOut() }
+
+    #if DEBUG
+    /// Local development only: a throwaway account, so two simulators can act as two people.
+    func signInAsTestPerson(_ name: String) async {
+        do {
+            try await db.auth.signInAnonymously()
+            if let id = userId {
+                try await db.from("profiles").update(["display_name": name]).eq("id", value: id).execute()
+                await loadProfile()
+            }
+        } catch { self.error = "Test sign-in failed. Is the local Supabase running?" }
+    }
+    #endif
+
+    private func afterSignIn() async {
+        await loadProfile()
+        guard let id = userId else { return }
+        let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
+        stage = onboarded ? .ready : .notifications
+        if onboarded { await refresh(); await joinPendingInvite() }
+    }
+
+    // MARK: Onboarding
+
+    func requestNotifications() async {
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+        stage = .payMethods
+    }
+
+    func skipNotifications() { stage = .payMethods }
+
+    func savePayMethods(venmo: String?, zelle: Bool, appleCash: Bool) async {
+        guard let id = userId else { return }
+        let venmo = venmo?.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        do {
+            try await db.from("profiles").update(PayMethodsUpdate(venmo_username: venmo?.isEmpty == false ? venmo : nil,
+                                                        has_zelle: zelle, has_apple_cash: appleCash))
+                .eq("id", value: id).execute()
+            await finishOnboarding()
+        } catch { self.error = "Couldn't save. Check your connection and try again." }
+    }
+
+    func finishOnboarding() async {
+        guard let id = userId else { return }
+        UserDefaults.standard.set(true, forKey: "onboarded.\(id)")
+        stage = .ready
+        await refresh()
+        await joinPendingInvite()
+    }
+
+    // MARK: Data
+
+    func loadProfile() async {
+        guard let id = userId else { return }
+        profile = try? await db.from("profiles").select().eq("id", value: id).single().execute().value
+    }
+
+    func refresh() async {
+        do {
+            async let t: [Trip] = db.from("trips")
+                .select("*, trip_members(user_id, position, removed_at, profiles!trip_members_user_id_fkey(id, display_name))")
+                .is("deleted_at", value: nil).order("created_at", ascending: false).execute().value
+            async let n: [TripNet] = db.rpc("my_trip_nets").execute().value
+            async let h: Int = db.rpc("my_header_total").execute().value
+            async let p: [PersonName] = db.from("profiles").select("id, display_name").neq("id", value: userId ?? UUID()).execute().value
+            (trips, nets, headerTotal, people) = try await (t, Dictionary(uniqueKeysWithValues: n.map { ($0.tripId, $0.cents) }), h, p)
+        } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
+    }
+
+    func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
+
+    // MARK: Trips
+
+    func createTrip(name: String, start: Date?, end: Date?, photo: Data?) async throws -> Trip {
+        let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
+            p_name: name, p_stamp: .random(), p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
+        )).execute().value
+        if let photo { try await setPhoto(tripId: id, photo) }
+        await refresh()
+        guard let trip = trip(id) else { throw URLError(.badServerResponse) }
+        return trip
+    }
+
+    func updateTrip(_ id: UUID, name: String, start: Date?, end: Date?, photo: Data?) async throws {
+        try await db.from("trips").update(TripDetailsUpdate(name: name, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
+            .eq("id", value: id).execute()
+        if let photo { try await setPhoto(tripId: id, photo) }
+        await refresh()
+    }
+
+    private func setPhoto(tripId: UUID, _ data: Data) async throws {
+        let path = "\(tripId.uuidString.lowercased())/cover-\(Int(Date().timeIntervalSince1970)).jpg"
+        try await db.storage.from("trip-photos").upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
+        try await db.from("trips").update(["image_path": path]).eq("id", value: tripId).execute()
+    }
+
+    func photoURL(_ path: String) async -> URL? {
+        try? await db.storage.from("trip-photos").createSignedURL(path: path, expiresIn: 3600)
+    }
+
+    func deleteTrip(_ id: UUID) async throws {
+        try await db.rpc("delete_trip", params: ["p_trip": id]).execute()
+        await refresh()
+    }
+
+    func addMember(_ user: UUID, to trip: UUID) async throws {
+        try await db.rpc("add_member", params: ["p_trip": trip, "p_user": user]).execute()
+        await refresh()
+    }
+
+    func removeMember(_ user: UUID, from trip: UUID, keepBalance: Bool) async throws {
+        struct Args: Encodable { let p_trip: UUID; let p_user: UUID; let p_mode: String }
+        try await db.rpc("remove_member", params: Args(p_trip: trip, p_user: user, p_mode: keepBalance ? "keep" : "wipe")).execute()
+        await refresh()
+    }
+
+    // MARK: Invites
+
+    func open(_ url: URL) async {
+        guard let token = InviteLink.token(from: url) else { return }
+        pendingInvite = token
+        if stage == .ready { await joinPendingInvite() } else { await loadInvitePreview() }
+    }
+
+    private func loadInvitePreview() async {
+        guard let token = pendingInvite else { invitePreview = nil; return }
+        let rows: [InvitePreview] = (try? await db.rpc("invite_preview", params: ["p_invite_token": token]).execute().value) ?? []
+        invitePreview = rows.first
+    }
+
+    private func joinPendingInvite() async {
+        guard let token = pendingInvite else { return }
+        do {
+            let alreadyOn = trips.contains { $0.inviteToken == token }
+            let id: UUID = try await db.rpc("join_trip", params: ["p_invite_token": token]).execute().value
+            pendingInvite = nil; invitePreview = nil
+            await refresh()
+            // Someone already on the trip just opens it; newcomers get the welcome.
+            if !alreadyOn { welcomeTrip = trip(id) }
+        } catch {
+            pendingInvite = nil
+            self.error = "That invite link didn't work. Ask for a new one."
+        }
+    }
+}

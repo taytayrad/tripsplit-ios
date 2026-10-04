@@ -21,6 +21,14 @@ targets:
     type: application
     platform: iOS
     sources: [TripSplit]
+    info:
+      path: TripSplit/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: com.taylor.tripsplit
+            CFBundleURLSchemes: [tripsplit]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true  # Debug builds talk to the local Supabase over http
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylor.tripsplit

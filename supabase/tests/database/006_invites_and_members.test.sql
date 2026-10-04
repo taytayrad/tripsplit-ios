@@ -1,7 +1,7 @@
 -- Phase 2 database additions: adding people you know, the invite preview, and trip photo storage.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(13);
 
 select tests.users('you', 'alex', 'sam', 'olive');
 select tests.trip('cr', array['you', 'alex']);          -- you and Alex share Coast Road
@@ -47,6 +47,15 @@ select is((select count(*) from storage.objects where bucket_id = 'trip-photos')
 select throws_ok(format('insert into storage.objects (bucket_id, name, owner_id) values (%L, %L, %L)',
                         'trip-photos', tests.id('cr') || '/sneaky.jpg', tests.id('olive')),
                  '42501', null, 'photos: outsiders can''t upload');
+
+-- Removed members keep their name on the trip, and can still see who they settle up with.
+select tests.authenticate_as(tests.id('you'));
+select public.remove_member(tests.id('cr'), tests.id('alex'), 'keep');
+select is((select display_name from public.profiles where id = tests.id('alex')), 'alex',
+          'profiles: a removed member''s name stays visible to the trip');
+select tests.authenticate_as(tests.id('alex'));
+select is((select display_name from public.profiles where id = tests.id('you')), 'you',
+          'profiles: a removed member still sees who they settle up with');
 
 select * from finish();
 rollback;

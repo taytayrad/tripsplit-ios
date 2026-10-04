@@ -68,3 +68,19 @@ create policy "trip photos: members replace" on storage.objects for update to au
   using (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
 create policy "trip photos: members delete" on storage.objects for delete to authenticated
   using (bucket_id = 'trip-photos' and private.is_member_of_folder(name));
+
+-- Profiles: anyone you've ever shared a trip with, removed or not. A removed member's name still shows on
+-- the trip, and with "keep" they still settle up, so both sides need each other's name and pay methods.
+create or replace function private.shares_a_trip(p_a uuid, p_b uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.trip_members a
+    join public.trip_members b on b.trip_id = a.trip_id
+    where a.user_id = p_a and b.user_id = p_b
+  );
+$$;
