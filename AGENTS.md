@@ -11,7 +11,7 @@ Native iPhone app (SwiftUI, iOS 17+) on Supabase, for close friends to split tri
 ## Read before you touch
 
 - **Planning or picking up work:** `docs/implementation-plan.md`. Phases with exit criteria; finish a phase's exit criteria before starting the next.
-- **Backlog and user feedback:** the TripSplit project in Linear (team Sweat Equity). Check its open issues when planning work. When one ships, record the decision in `prd.md` under "Prototype decisions".
+- **Backlog and user feedback:** the TripSplit team in Linear (issues `TRIP-n`), not GitHub issues. Check its open issues when planning work. When one ships, record the decision in `prd.md` under "Prototype decisions".
 - **Money** (splits, shares, balances, payments, allocation, rounding): `docs/money-rules.md`. Turn its golden cases into tests before writing the code they cover. All money is integer cents.
 - **Schema, migrations, or RPC functions:** `docs/data-model.md`
 - **RLS or who-can-do-what:** `docs/permissions.md`
