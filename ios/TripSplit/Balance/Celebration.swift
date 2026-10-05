@@ -12,8 +12,9 @@ struct Celebration: View {
     @State private var thumps = 0
 
     private let duration = 3.0
-    /// Where the stamps land, as fractions of the screen: the right side, clear of the balance block's "$0".
-    private static let spots = [CGPoint(x: 0.76, y: 0.12), CGPoint(x: 0.6, y: 0.34), CGPoint(x: 0.86, y: 0.27)]
+    /// Where the stamps land, as fractions of the screen: the first just right of the balance block's "$0", as if
+    /// stamped next to it; the others to its right.
+    private static let spots = [CGPoint(x: 0.4, y: 0.16), CGPoint(x: 0.78, y: 0.11), CGPoint(x: 0.7, y: 0.3)]
     private static func landing(_ i: Int) -> Double { 0.15 + Double(i) * 0.22 }
 
     private var shown: [StampSpec] { Array((stamps + (0..<3).map { _ in StampSpec.random() }).prefix(3)) }

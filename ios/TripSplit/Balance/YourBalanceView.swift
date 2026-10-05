@@ -79,8 +79,6 @@ struct PersonView: View {
     /// A pay app you opened; returning to TripSplit asks whether you paid (it logs nothing by itself).
     @State private var awaitingReturn: PayMethod?
     @State private var payingWithAppleCash = false
-    /// Messages closed from the Apple Cash guide: ask "Did you pay?" once the guide is gone.
-    @State private var askAfterAppleCash = false
     @State private var deleting: PersonLedger.Line?
 
     private var name: String { app.name(of: personId) }
@@ -125,10 +123,8 @@ struct PersonView: View {
             awaitingReturn = nil
             logging = LogContext(direction: .pay, method: method)
         }
-        .sheet(isPresented: $payingWithAppleCash, onDismiss: {
-            if askAfterAppleCash { askAfterAppleCash = false; logging = LogContext(direction: .pay, method: .appleCash) }
-        }) {
-            AppleCashGuide(otherName: name, cents: -ledger.total) { askAfterAppleCash = true }
+        .sheet(isPresented: $payingWithAppleCash) {
+            AppleCashGuide(otherName: name, cents: -ledger.total) { awaitingReturn = .appleCash }
         }
         .sheet(item: $logging) { context in
             LogPaymentSheet(context: context, otherId: personId, otherName: name, max: LogPayment.max(total: ledger.total, direction: context.direction),
