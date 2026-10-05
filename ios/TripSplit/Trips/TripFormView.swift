@@ -49,7 +49,10 @@ struct TripFormView: View {
                 }
                 .listRowBackground(Color.clear)
 
-                Section("Name") { TextField("Trip name", text: $name).focused($nameFocused) }
+                Section("Name") {
+                    TextField("Trip name", text: $name).focused($nameFocused)
+                        .submitLabel(.done).onSubmit { nameFocused = false }
+                }
 
                 Section {
                     Toggle("Dates", isOn: $hasDates.animation())
@@ -58,6 +61,10 @@ struct TripFormView: View {
                         DatePicker("End", selection: $end, in: start..., displayedComponents: .date)
                     }
                 } footer: { Text("Optional. A start and an end.") }
+                // Touching the dates ends editing the name; otherwise the keyboard stays up, keeps typing into the
+                // name, and comes back when a date picker closes.
+                .simultaneousGesture(TapGesture().onEnded { nameFocused = false })
+                .onChange(of: hasDates) { nameFocused = false }
 
                 if let trip = liveTrip {
                     Section("Members") {
@@ -229,7 +236,7 @@ struct AddMembersView: View {
                                 set: { if $0 { picked.insert(person.id) } else { picked.remove(person.id) } }))
                         }
                     } header: { Text("On TripSplit") } footer: {
-                        Text(onDone == nil ? "They join when you tap Save." : "They join when you tap Done.")
+                        Text(onDone == nil ? "They join when you go back and tap Save." : "They join when you tap Done.")
                     }
                 }
             }
