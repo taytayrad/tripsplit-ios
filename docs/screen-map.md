@@ -26,6 +26,7 @@ flowchart LR
     welcome -->|Add expense| expense
 
     chip(("Balance chip")) --> balance["Your Balance [13]"] --> person["Person [14, 18, P1]"]
+    person -- "expense row" --> expense
     person -- "Venmo" --> payapp["Pay app<br/>(outside TripSplit)"] --> log["Log sheet [16, 19, P3]"]
     person -- "Apple Cash" --> cashguide["Apple Cash guide"] -- "Open Messages" --> payapp
     person -- "Zelle (amount copied)" --> log
