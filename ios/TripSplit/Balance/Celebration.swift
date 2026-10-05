@@ -10,6 +10,8 @@ struct Celebration: View {
     @State private var start = Date.now
     @State private var particles: [Particle] = []
     @State private var thumps = 0
+    /// The three stamps shown, picked once when it starts (random fillers would otherwise change on every redraw).
+    @State private var shown: [StampSpec] = []
     /// Set when it's over: the view (and its animation schedule) goes away.
     @State private var finished = false
     @State private var fading = false
@@ -20,7 +22,6 @@ struct Celebration: View {
     private static let spots = [CGPoint(x: 0.4, y: 0.16), CGPoint(x: 0.78, y: 0.11), CGPoint(x: 0.7, y: 0.3)]
     private static func landing(_ i: Int) -> Double { 0.15 + Double(i) * 0.22 }
 
-    private var shown: [StampSpec] { Array((stamps + (0..<3).map { _ in StampSpec.random() }).prefix(3)) }
 
     struct Particle {
         var origin: CGPoint      // fraction of the view
@@ -63,18 +64,22 @@ struct Celebration: View {
         .ignoresSafeArea()
         .sensoryFeedback(.impact(weight: .heavy), trigger: thumps)
         .task {
+            shown = Array((stamps + (0..<3).map { _ in StampSpec.random() }).prefix(3))
             particles = Self.rings()
             start = .now
-            if !reduceMotion {
-                for i in Self.spots.indices {  // one thump as each stamp lands
-                    try? await Task.sleep(for: .seconds(i == 0 ? Self.landing(0) : Self.landing(i) - Self.landing(i - 1)))
-                    thumps += 1
+            // A cancelled task (the screen closed) stops here: no haptic on the way out.
+            do {
+                if !reduceMotion {
+                    for i in Self.spots.indices {  // one thump as each stamp lands
+                        try await Task.sleep(for: .seconds(i == 0 ? Self.landing(0) : Self.landing(i) - Self.landing(i - 1)))
+                        thumps += 1
+                    }
                 }
-            }
-            try? await Task.sleep(for: .seconds(duration - 0.6 - (reduceMotion ? 0 : Self.landing(2))))
-            if reduceMotion { withAnimation(.easeOut(duration: 0.6)) { fading = true } }
-            try? await Task.sleep(for: .seconds(0.6))
-            finished = true
+                try await Task.sleep(for: .seconds(duration - 0.6 - (reduceMotion ? 0 : Self.landing(2))))
+                if reduceMotion { withAnimation(.easeOut(duration: 0.6)) { fading = true } }
+                try await Task.sleep(for: .seconds(0.6))
+                finished = true
+            } catch { return }
         }
     }
 

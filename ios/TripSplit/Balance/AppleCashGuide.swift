@@ -16,6 +16,20 @@ struct AppleCashGuide: View {
     private var message: String { "Sending you \(Money.string(cents)) with Apple Cash for our TripSplit balance." }
 
     var body: some View {
+        ScrollView {
+            if cents > 0 { guide } else {
+                // The balance changed while the guide was open (the other person logged a payment).
+                Text("You don’t owe \(otherName) anything now.").font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.top, Spacing.xxxl)
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .onAppear(perform: copyAmount)
+        .onChange(of: cents) { copyAmount() }
+    }
+
+    private var guide: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("Send \(Money.string(cents)) with Apple Cash").font(.title3.weight(.semibold)).padding(.top, Spacing.xl)
             VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -36,10 +50,10 @@ struct AppleCashGuide: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, Spacing.lg)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .onAppear { UIPasteboard.general.string = Money.plain(cents) }
     }
+
+    /// Step 3 says the amount is copied, so the clipboard follows the live balance (and only a real amount).
+    private func copyAmount() { if cents > 0 { UIPasteboard.general.string = Money.plain(cents) } }
 
     private func step(_ n: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
@@ -49,11 +63,15 @@ struct AppleCashGuide: View {
         }
     }
 
-    /// A new message in the Messages app with the text filled in and no recipient.
+    /// A new message in the Messages app with the text filled in and no recipient. "Did you pay?" is armed only once
+    /// Messages has actually opened; if it doesn't, the guide stays up.
     private func open() {
-        UIPasteboard.general.string = Money.plain(cents)
-        onOpenMessages()
-        dismiss()
-        if let link = URL(string: "sms:&body=" + (message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")) { openURL(link) }
+        guard cents > 0, let link = URL(string: "sms:&body=" + (message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")) else { return }
+        copyAmount()
+        openURL(link) { opened in
+            guard opened else { return }
+            onOpenMessages()
+            dismiss()
+        }
     }
 }

@@ -113,7 +113,7 @@ struct PersonView: View {
         }
         .listSectionSpacing(.compact)
         .contentMargins(.top, 0, for: .scrollContent)
-        .overlay { if !loggedHere.isEmpty && ledger.total == 0 { Celebration(stamps: settledStamps) } }  // settled by a payment here
+        .overlay { if !loggedHere.isEmpty && ledger.total == 0 { Celebration(stamps: settledStamps(ledger)) } }  // settled by a payment here
         .safeAreaInset(edge: .bottom) { payBar(total: ledger.total) }
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
@@ -146,8 +146,11 @@ struct PersonView: View {
 
     private var loggedHere: [Payment] { app.payments.filter { loggedIds.contains($0.id) } }
 
-    /// The stamps of the trips a payment here settled, for the celebration.
-    private var settledStamps: [StampSpec] { keep.compactMap { app.trip($0)?.stamp } }
+    /// The stamps of the trips a payment here brought to $0, newest first, for the celebration. A trip it touched
+    /// that still has a balance isn't one of them.
+    private func settledStamps(_ ledger: PersonLedger) -> [StampSpec] {
+        ledger.groups.filter { keep.contains($0.id) && $0.net == 0 }.compactMap { app.trip($0.id)?.stamp }
+    }
 
     private func label(_ total: Int) -> String {
         total < 0 ? "You owe \(name)" : total > 0 ? "\(name) owes you" : "Settled"

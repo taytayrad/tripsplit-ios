@@ -83,6 +83,7 @@ sequenceDiagram
     DB-->>App: Payments
     App->>App: Jordan screen: You owe $40
     Note over App,DB: Retrying with the same request_id<br/>creates nothing new
+    Note over Y,App: Apple Cash: a guide sheet first (steps, amount copied),<br/>then the Messages app with the message written;<br/>coming back opens the same log sheet. Zelle: amount<br/>copied, log sheet opens right away.
 ```
 
 ## State machines
