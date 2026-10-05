@@ -88,9 +88,26 @@ struct SettlingTests {
                                   payments: [], pairs: [PairBalance(tripId: cr.id, otherUserId: Self.alex, cents: -1000)])
         #expect(ledger.total == -1000)
         #expect(ledger.groups.map(\.name) == ["Coast Road"])
-        #expect(ledger.groups[0].lines.map(\.title) == ["Dinner", "Gas"])
-        #expect(ledger.groups[0].lines.map(\.cents) == [-2000, 1000])
-        #expect(ledger.groups[0].lines.map(\.effect).reduce(0, +) == ledger.groups[0].net)
+        let lines = ledger.groups[0].lines
+        #expect(lines.map(\.title) == ["Dinner", "Gas"])
+        #expect(lines.map(\.effect) == [-2000, 1000])
+        #expect(lines.map(\.effect).reduce(0, +) == ledger.groups[0].net)
+    }
+
+    // PRD › Prototype decisions › Person screen lines: the trip's Expense Row, with only what's between the two
+    // of you on the right and the payer's whole expense in the caption. A tap edits the expense.
+    @Test func expenseLinesLookLikeTheTripsRows() {
+        let cr = Self.trip("Coast Road", [Self.you, Self.alex, Self.jordan])
+        let dinner = Self.expense("Dinner", on: cr, cents: 6000, paidBy: Self.alex, shares: [Self.you: 2000, Self.alex: 2000, Self.jordan: 2000], day: "2026-09-30")
+        let gas = Self.expense("Gas", on: cr, cents: 3000, paidBy: Self.you, shares: [Self.you: 1000, Self.alex: 1000, Self.jordan: 1000])
+        let ledger = PersonLedger(me: Self.you, other: Self.alex, otherName: "Alex", tripsNewestFirst: [cr], expenses: [gas, dinner],
+                                  payments: [], pairs: [PairBalance(tripId: cr.id, otherUserId: Self.alex, cents: -1000)], now: Self.day("2026-10-04"))
+        let lines = ledger.groups[0].lines
+        #expect(lines.map(\.label) == ["You owe", "You lent"])
+        #expect(lines.map(\.cents) == [2000, 1000])
+        #expect(lines.map(\.caption) == ["Alex paid $60 · Sep 30", "You paid $30 · Oct 1"])
+        #expect(lines.map(\.symbol) == [ExpenseIcon.general.symbol, ExpenseIcon.general.symbol])
+        #expect(lines.map(\.expense) == [dinner, gas])
     }
 
     // M2: you paid for Alex and Jordan only. Expenses that don't involve Alex aren't on Alex's screen.
@@ -115,17 +132,22 @@ struct SettlingTests {
         #expect(lines.map(\.title) == ["Costco", "Alex paid you"])
         #expect(lines.map(\.isPayment) == [false, true])
         #expect(lines[1].cents == 2806)
+        #expect(lines[1].label == nil && lines[1].expense == nil)
+        #expect(lines[1].symbol == PersonLedger.paymentSymbol)
         #expect(lines.map(\.effect).reduce(0, +) == 0)
         #expect(ledger.total == 0)
     }
 
-    @Test func paymentLinesNameTheMethod() {
+    // The method and day go in the caption; a recorded payment shows only the day.
+    @Test func paymentCaptionsNameTheMethodAndDay() {
         let cr = Self.trip("Coast Road", [Self.you, Self.jordan])
         let ledger = PersonLedger(me: Self.you, other: Self.jordan, otherName: "Jordan", tripsNewestFirst: [cr], expenses: [],
                                   payments: [Self.payment(on: cr, from: Self.you, to: Self.jordan, cents: 6000, method: .venmo),
-                                             Self.payment(on: cr, from: Self.jordan, to: Self.you, cents: 500, method: .cash)],
-                                  pairs: [])
-        #expect(ledger.groups[0].lines.map(\.title) == ["You paid · Venmo", "Jordan paid you · Cash"])
+                                             Self.payment(on: cr, from: Self.jordan, to: Self.you, cents: 500, method: .recorded)],
+                                  pairs: [], now: Self.day("2026-10-02"))
+        let lines = ledger.groups[0].lines
+        #expect(lines.map(\.title) == ["You paid", "Jordan paid you"])
+        #expect(lines.map(\.caption) == ["Venmo · Today", "Today"])
     }
 
     // PRD › Prototype decisions: newest trip first; settled trips hide behind "Show settled trips", except one
@@ -155,7 +177,7 @@ struct SettlingTests {
         #expect(ledger.groups.map(\.id) == [gone])
         #expect(ledger.groups[0].name == PersonLedger.unreadableTripName)
         #expect(ledger.groups[0].net == -2000)
-        #expect(ledger.groups[0].lines.map(\.title) == ["You paid · Cash"])
+        #expect(ledger.groups[0].lines.map(\.title) == ["You paid"])
     }
 
     // Payments on a deleted trip stay readable, but a deleted trip has no pair rows. It must not come back as

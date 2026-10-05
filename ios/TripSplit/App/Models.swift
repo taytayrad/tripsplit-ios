@@ -62,7 +62,7 @@ struct PairBalance: Codable, Hashable, Sendable {
 enum PayMethod: String, Codable, Sendable {
     case venmo, zelle, appleCash = "apple_cash", cash, recorded
 
-    /// The suffix on a payment line ("You paid · Venmo"); a recorded payment has none.
+    /// The method on a payment line's caption ("Venmo · Today"); a recorded payment has none.
     var title: String? {
         switch self {
         case .venmo: "Venmo"

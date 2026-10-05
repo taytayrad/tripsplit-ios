@@ -73,6 +73,11 @@ enum ExpenseLine {
     static func day(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
         calendar.isDate(date, inSameDayAs: now) ? "Today" : date.formatted(.dateTime.month(.abbreviated).day())
     }
+
+    /// The row's caption: who paid, the whole expense, and the day ("Alex paid $120 · Oct 3").
+    static func caption(payer: String, amountCents: Int, date: Date, now: Date = .now) -> String {
+        "\(payer) paid \(Money.string(amountCents)) · \(day(date, now: now))"
+    }
 }
 
 /// The running total pinned above the keyboard, and whether the split can be saved.
