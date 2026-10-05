@@ -15,9 +15,10 @@ struct RequestTests {
     }
 
     @Test func removingDatesSendsNull() throws {
-        let j = try json(TripDetailsUpdate(name: "Coast Road", start_date: nil, end_date: nil))
+        let j = try json(TripDetailsUpdate(name: "Coast Road", stamp: .random(), start_date: nil, end_date: nil))
         #expect(j["start_date"] is NSNull)
         #expect(j["end_date"] is NSNull)
+        #expect(j["stamp"] is [String: Any])  // an edited stamp is saved with the details
     }
 
     @Test func turningOffVenmoClearsTheUsername() throws {
