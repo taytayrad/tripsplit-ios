@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Add trip and Edit trip. Adding opens Add members next (members aren't required); you can go back from there to
 /// fix the name or dates. People picked in Add members join only on Save (Edit trip) or Done (Add trip).
@@ -23,6 +22,9 @@ struct TripFormView: View {
     @State private var picked: Set<UUID> = []
     @State private var loaded = false
     @FocusState private var nameFocused: Bool
+    enum DateField { case start, end }
+    /// The date whose calendar is open under its row.
+    @State private var openDate: DateField?
     @State private var removing: Member?
     @State private var confirmDelete = false
     @State private var error: String?
@@ -58,12 +60,20 @@ struct TripFormView: View {
                 Section {
                     Toggle("Dates", isOn: $hasDates.animation())
                     if hasDates {
-                        DatePicker("Start", selection: $start, displayedComponents: .date).simultaneousGesture(endEditingOnTouch)
-                        DatePicker("End", selection: $end, in: start..., displayedComponents: .date).simultaneousGesture(endEditingOnTouch)
+                        dateRow("Start", start, .start)
+                        if openDate == .start {
+                            DatePicker("Start", selection: $start, displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
+                        }
+                        dateRow("End", end, .end)
+                        if openDate == .end {
+                            DatePicker("End", selection: $end, in: start..., displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
+                        }
                     }
                 } footer: { Text("Optional. A start and an end.") }
                 // Touching the dates ends editing the name; otherwise the keyboard stays up and keeps typing into it.
-                .onChange(of: hasDates) { nameFocused = false }
+                .onChange(of: hasDates) { nameFocused = false; openDate = nil }
+                .onChange(of: start) { if end < start { end = start } }
+                .onChange(of: nameFocused) { if nameFocused { withAnimation { openDate = nil } } }
 
                 if let trip = liveTrip {
                     Section("Members") {
@@ -134,14 +144,22 @@ struct TripFormView: View {
         }
     }
 
-    /// A date picker's calendar hands focus back to whatever had it when it opened, so the name has to let go on
-    /// touch-down, before the calendar appears, or the keyboard returns when the calendar closes.
-    private var endEditingOnTouch: some Gesture {
-        DragGesture(minimumDistance: 0).onChanged { _ in
-            guard nameFocused else { return }
+    /// A date row that opens its calendar inline (the Calendar app's pattern). The compact picker's popover hands
+    /// focus back to the name when it closes, flashing the keyboard; a plain button ends editing first instead.
+    private func dateRow(_ title: String, _ date: Date, _ field: DateField) -> some View {
+        Button {
             nameFocused = false
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            withAnimation { openDate = openDate == field ? nil : field }
+        } label: {
+            HStack {
+                Text(title).foregroundStyle(.primary)
+                Spacer()
+                Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
+                    .foregroundStyle(openDate == field ? Color.tsTintFill : Color.tsSecondary)
+            }
         }
+        .accessibilityValue(date.formatted(date: .long, time: .omitted))
+        .accessibilityHint(openDate == field ? "Double tap to close the calendar" : "Double tap to choose a date")
     }
 
     private func pickedPeople(on trip: Trip) -> [Profile] {
