@@ -33,16 +33,27 @@ struct BalanceSummary: Equatable {
 }
 
 /// A person's screen: a group per shared trip (newest first), each with its net and the lines between the two
-/// of you. Charges are signed (+ they owe you); payments are neutral amounts.
+/// of you, drawn like the trip's expense rows (PRD › Prototype decisions › Person screen lines).
 struct PersonLedger {
     struct Line: Identifiable, Equatable {
         let id: UUID
         let title: String
+        /// "Alex paid $120 · Oct 3" for an expense; "Venmo · Today", or the day alone when recorded, for a payment.
+        let caption: String
+        /// "You owe" or "You lent" on an expense; none on a payment.
+        let label: String?
+        /// What the line shows, unsigned: only what's between the two of you.
         let cents: Int
         let isPayment: Bool
         /// The change to your net with this person.
         let effect: Int
+        let symbol: String
+        /// The expense a tap edits; nil for a payment.
+        let expense: Expense?
     }
+
+    /// SF Symbol on a payment line (Figma Payment/Transfer).
+    static let paymentSymbol = "arrow.left.arrow.right"
 
     struct Group: Identifiable, Equatable {
         let id: UUID
@@ -59,7 +70,8 @@ struct PersonLedger {
     /// A trip whose pair rows or payments reach you but whose row you can't read: you were removed with keep.
     static let unreadableTripName = "A trip you were removed from"
 
-    init(me: UUID, other: UUID, otherName: String, tripsNewestFirst: [Trip], expenses: [Expense], payments: [Payment], pairs: [PairBalance]) {
+    init(me: UUID, other: UUID, otherName: String, tripsNewestFirst: [Trip], expenses: [Expense], payments: [Payment], pairs: [PairBalance],
+         now: Date = .now) {
         let mine = pairs.filter { $0.otherUserId == other }
         let nets = BalanceSummary.tripNets(mine)
         total = mine.reduce(0) { $0 + $1.cents }
@@ -68,11 +80,16 @@ struct PersonLedger {
         func group(_ tripId: UUID, _ name: String) -> Group? {
             let charges: [Line] = expenses.filter { $0.tripId == tripId }.sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }.compactMap { e in
                 let cents = e.payerId == me ? e.share(of: other) ?? 0 : e.payerId == other ? -(e.share(of: me) ?? 0) : 0
-                return cents == 0 ? nil : Line(id: e.id, title: e.description, cents: cents, isPayment: false, effect: cents)
+                guard cents != 0 else { return nil }
+                let caption = ExpenseLine.caption(payer: e.payerId == me ? "You" : otherName, amountCents: e.amountCents, date: e.date, now: now)
+                return Line(id: e.id, title: e.description, caption: caption, label: cents < 0 ? "You owe" : "You lent", cents: abs(cents),
+                            isPayment: false, effect: cents, symbol: e.icon.symbol, expense: e)
             }
             let paid: [Line] = between.filter { $0.tripId == tripId }.map { p in
-                let title = (p.payerId == me ? "You paid" : "\(otherName) paid you") + (p.method.title.map { " · \($0)" } ?? "")
-                return Line(id: p.id, title: title, cents: p.amountCents, isPayment: true, effect: p.payerId == me ? p.amountCents : -p.amountCents)
+                let title = p.payerId == me ? "You paid" : "\(otherName) paid you"
+                let caption = [p.method.title, ExpenseLine.day(p.createdAt, now: now)].compactMap { $0 }.joined(separator: " · ")
+                return Line(id: p.id, title: title, caption: caption, label: nil, cents: p.amountCents, isPayment: true,
+                            effect: p.payerId == me ? p.amountCents : -p.amountCents, symbol: Self.paymentSymbol, expense: nil)
             }
             let net = nets[tripId] ?? 0
             return charges.isEmpty && paid.isEmpty && net == 0 ? nil : Group(id: tripId, name: name, net: net, lines: charges + paid)

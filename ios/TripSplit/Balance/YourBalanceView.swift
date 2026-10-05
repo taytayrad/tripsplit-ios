@@ -80,6 +80,7 @@ struct PersonView: View {
     @State private var awaitingReturn: PayMethod?
     @State private var payingWithAppleCash = false
     @State private var deleting: PersonLedger.Line?
+    @State private var editingExpense: ExpenseSheet?
 
     private var name: String { app.name(of: personId) }
 
@@ -95,7 +96,10 @@ struct PersonView: View {
             ForEach(ledger.visible(showSettled: showSettled, keep: keep)) { group in
                 Section {
                     ForEach(group.lines) { line in
-                        ChargeRow(line: line)
+                        ExpenseRowLayout(symbol: line.symbol, title: line.title, caption: line.caption, label: line.label, cents: line.cents,
+                                         color: line.isPayment ? .tsSecondary : line.effect < 0 ? .tsOwe : .tsOwed)
+                            .contentShape(.rect)
+                            .onTapGesture { if let expense = line.expense { editingExpense = .edit(expense) } }
                             .swipeActions { if line.isPayment { Button("Delete", role: .destructive) { deleting = line } } }
                     }
                 } header: {
@@ -123,6 +127,8 @@ struct PersonView: View {
             awaitingReturn = nil
             logging = LogContext(direction: .pay, method: method)
         }
+        // Its own sheet: this screen is already inside the Your Balance sheet, so the root's expense sheet can't show.
+        .sheet(item: $editingExpense) { ExpenseFormView(target: $0) }
         .sheet(isPresented: $payingWithAppleCash) {
             AppleCashGuide(otherName: name, cents: -ledger.total) { awaitingReturn = .appleCash }
         }
@@ -212,20 +218,6 @@ struct PersonView: View {
     }
 
     private func copy(_ cents: Int) { UIPasteboard.general.string = Money.plain(cents) }
-}
-
-/// Figma Charge Row: an expense line (red when you owe, green when they owe you) or a payment line (neutral).
-private struct ChargeRow: View {
-    let line: PersonLedger.Line
-    var body: some View {
-        HStack(spacing: Spacing.md) {
-            Text(line.title)
-            Spacer()
-            Text(Money.string(line.cents))
-                .foregroundStyle(line.isPayment ? Color.tsSecondary : line.cents < 0 ? Color.tsOwe : Color.tsOwed)
-        }
-        .accessibilityElement(children: .combine)
-    }
 }
 
 /// Why the log sheet is open: which way the money went and how.

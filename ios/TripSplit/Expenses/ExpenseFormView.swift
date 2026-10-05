@@ -252,9 +252,11 @@ struct PaidByView: View {
 
 /// The Figma Icon Tile: 36 pt, gray fill, the expense's SF Symbol.
 struct IconTile: View {
-    let icon: ExpenseIcon
+    let symbol: String
+    init(icon: ExpenseIcon) { symbol = icon.symbol }
+    init(symbol: String) { self.symbol = symbol }
     var body: some View {
-        Image(systemName: icon.symbol)
+        Image(systemName: symbol)
             .font(.system(size: 17, weight: .medium))
             .foregroundStyle(.primary)
             .frame(width: 36, height: 36)
@@ -262,7 +264,7 @@ struct IconTile: View {
     }
 }
 
-/// One expense on the trip (Figma Expense Row): icon, title, "Paid by you · Today", and only your part
+/// One expense on the trip (Figma Expense Row): icon, title, "Alex paid $120 · Today", and only your part
 /// as a gray label over a colored amount.
 struct ExpenseRow: View {
     let expense: Expense
@@ -272,19 +274,36 @@ struct ExpenseRow: View {
     var body: some View {
         let youPaid = expense.payerId == app.userId
         let part = ExpenseLine.parts(amountCents: expense.amountCents, youPaid: youPaid, yourShareCents: expense.share(of: app.userId))
-        let payer = youPaid ? "you" : trip.tripMembers.first { $0.userId == expense.payerId }?.profiles.displayName ?? "someone"
+        let payer = youPaid ? "You" : trip.tripMembers.first { $0.userId == expense.payerId }?.profiles.displayName ?? "Someone"
+        ExpenseRowLayout(symbol: expense.icon.symbol, title: expense.description,
+                         caption: ExpenseLine.caption(payer: payer, amountCents: expense.amountCents, date: expense.date),
+                         label: part?.label, cents: part?.cents,
+                         color: part?.label == "You owe" ? .tsOwe : part?.label == "You lent" ? .tsOwed : .tsSecondary)
+    }
+}
+
+/// The Figma Expense Row's layout, shared by a trip's expenses and a person's screen: icon tile, title over
+/// caption, and an optional gray label over the amount (none at all when `cents` is nil).
+struct ExpenseRowLayout: View {
+    let symbol: String
+    let title: String
+    let caption: String
+    let label: String?
+    let cents: Int?
+    let color: Color
+
+    var body: some View {
         HStack(spacing: Spacing.md) {
-            IconTile(icon: expense.icon)
+            IconTile(symbol: symbol)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(expense.description).lineLimit(1)
-                Text("Paid by \(payer) · \(ExpenseLine.day(expense.date))").font(.footnote).foregroundStyle(Color.tsSecondary)
+                Text(title).lineLimit(1)
+                Text(caption).font(.footnote).foregroundStyle(Color.tsSecondary)
             }
             Spacer()
-            if let part {
+            if let cents {
                 VStack(alignment: .trailing, spacing: Spacing.xxs) {
-                    Text(part.label).font(.footnote).foregroundStyle(Color.tsSecondary)
-                    Text(Money.string(part.cents)).font(.headline)
-                        .foregroundStyle(part.label == "You owe" ? Color.tsOwe : part.label == "You lent" ? Color.tsOwed : Color.tsSecondary)
+                    if let label { Text(label).font(.footnote).foregroundStyle(Color.tsSecondary) }
+                    Text(Money.string(cents)).font(.headline).foregroundStyle(color)
                 }
             }
         }

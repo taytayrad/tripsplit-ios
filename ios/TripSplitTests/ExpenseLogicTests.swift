@@ -53,6 +53,13 @@ struct ExpenseLogicTests {
         #expect(ExpenseLine.text(amountCents: 8420, youPaid: false, yourShareCents: nil) == nil)
     }
 
+    // PRD › Prototype decisions: the caption names the payer and the whole expense, then the day.
+    @Test func captionNamesThePayerAndTheFullAmount() {
+        let now = Self.day("2026-10-04")
+        #expect(ExpenseLine.caption(payer: "Alex", amountCents: 12000, date: Self.day("2026-10-03"), now: now) == "Alex paid $120 · Oct 3")
+        #expect(ExpenseLine.caption(payer: "You", amountCents: 8420, date: now, now: now) == "You paid $84.20 · Today")
+    }
+
     // PRD › Prototype decisions › Splits: the running total footer, and when Save is allowed.
     @Test func equalFooterIsTheRoundedAverage() {
         let f = SplitFooter.evaluate(kind: .equal, amountCents: 8420, inputs: [1, 1, 1])
