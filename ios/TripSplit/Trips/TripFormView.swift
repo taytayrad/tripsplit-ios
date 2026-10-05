@@ -107,6 +107,7 @@ struct TripFormView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .interactiveDismissDisabled(saving)
             .navigationTitle(isAdding ? "Add trip" : "Edit trip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -118,7 +119,7 @@ struct TripFormView: View {
             }
             .navigationDestination(isPresented: $showingMembers) {
                 if let trip = editing {
-                    AddMembersView(tripId: trip.id, picked: $picked, onDone: isAdding ? { Task { await finishAdding(trip) } } : nil)
+                    AddMembersView(tripId: trip.id, picked: $picked, busy: saving, onDone: isAdding ? { Task { await finishAdding(trip) } } : nil)
                 }
             }
             .onAppear {
@@ -197,6 +198,8 @@ struct TripFormView: View {
 
     /// Done in Add members, in the Add trip flow.
     private func finishAdding(_ trip: Trip) async {
+        guard !saving else { return }
+        saving = true; defer { saving = false }  // picks and navigation are locked until it's done
         retry = { await finishAdding(trip) }
         do {
             try await addPicked(to: trip.id)
@@ -205,10 +208,13 @@ struct TripFormView: View {
         } catch { self.error = AppModel.describe("Couldn’t add everyone. Check your connection and try again.", error) }
     }
 
-    /// Adding someone already on the trip does nothing, so a retry after a partial failure is safe.
+    /// Each person leaves `picked` as soon as they're added, so after a partial failure only the unfinished ones
+    /// are retried (and removing someone who did get added isn't undone by a later Save).
     private func addPicked(to trip: UUID) async throws {
-        for id in picked { try await app.addMember(id, to: trip) }
-        picked = []
+        for id in picked {
+            try await app.addMember(id, to: trip)
+            picked.remove(id)
+        }
     }
 
     /// Once Add trip has saved the trip, Cancel finishes the flow on it rather than pretending it wasn't made.
@@ -235,6 +241,8 @@ struct TripFormView: View {
 struct AddMembersView: View {
     let tripId: UUID
     @Binding var picked: Set<UUID>
+    /// True while the picks are being added: they can't change, and you can't leave, until it's done.
+    var busy = false
     /// Set in the Add trip flow: Done adds the picks and finishes.
     var onDone: (() -> Void)?
     @Environment(AppModel.self) private var app
@@ -261,6 +269,7 @@ struct AddMembersView: View {
                             CheckRow(title: person.displayName, isOn: .init(
                                 get: { picked.contains(person.id) },
                                 set: { if $0 { picked.insert(person.id) } else { picked.remove(person.id) } }))
+                                .disabled(busy)
                         }
                     } header: { Text("On TripSplit") } footer: {
                         Text(onDone == nil ? "They join when you go back and tap Save." : "They join when you tap Done.")
@@ -269,8 +278,11 @@ struct AddMembersView: View {
             }
             .navigationTitle("Add members")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(busy)
             .toolbar {
-                if let onDone { Button("Done", action: onDone).fontWeight(.semibold) }
+                if let onDone {
+                    if busy { ProgressView() } else { Button("Done", action: onDone).fontWeight(.semibold) }
+                }
             }
             .refreshable { await app.refresh() }
         }
