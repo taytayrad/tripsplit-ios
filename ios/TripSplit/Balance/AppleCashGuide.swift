@@ -1,4 +1,3 @@
-import PassKit
 import SwiftUI
 
 /// Before Apple Cash: how to send it (many people never have), then the Messages app with the message written.
@@ -27,8 +26,14 @@ struct AppleCashGuide: View {
             }
             Text("When you come back, TripSplit asks whether you paid. Nothing is logged until you say so.").font(.footnote).foregroundStyle(Color.tsSecondary)
             Button("Open Messages") { open() }.buttonStyle(PrimaryButtonStyle()).padding(.top, Spacing.sm)
-            Button("New to Apple Cash? Set it up in Wallet") { PKPassLibrary().openPaymentSetup() }
-                .font(.subheadline).foregroundStyle(Color.tsTintFill).frame(maxWidth: .infinity, minHeight: 44)
+            // Apps can't open that Settings page, and Wallet's add-card flow doesn't turn on Apple Cash.
+            VStack(spacing: Spacing.xxs) {
+                Text("New to Apple Cash? Turn it on in Settings › Wallet & Apple Pay › Apple Cash.")
+                    .font(.footnote).foregroundStyle(Color.tsSecondary).multilineTextAlignment(.center)
+                Link("How to set up Apple Cash", destination: URL(string: "https://support.apple.com/en-us/109304")!)
+                    .font(.subheadline).foregroundStyle(Color.tsTintFill).frame(minHeight: 44)
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, Spacing.lg)
         .presentationDetents([.medium, .large])

@@ -10,6 +10,9 @@ struct Celebration: View {
     @State private var start = Date.now
     @State private var particles: [Particle] = []
     @State private var thumps = 0
+    /// Set when it's over: the view (and its animation schedule) goes away.
+    @State private var finished = false
+    @State private var fading = false
 
     private let duration = 3.0
     /// Where the stamps land, as fractions of the screen: the first just right of the balance block's "$0", as if
@@ -32,8 +35,12 @@ struct Celebration: View {
     }
 
     var body: some View {
+        if !finished { celebration }
+    }
+
+    private var celebration: some View {
         let stamps = shown
-        TimelineView(.animation(paused: reduceMotion)) { context in
+        return TimelineView(.animation(paused: reduceMotion)) { context in
             let t = reduceMotion ? 0.9 : context.date.timeIntervalSince(start)
             ZStack {
                 Canvas { gc, size in draw(gc, size: size, t: t) }
@@ -50,6 +57,7 @@ struct Celebration: View {
             }
             .opacity(t > duration - 0.6 ? max(0, (duration - t) / 0.6) : 1)
         }
+        .opacity(fading ? 0 : 1)  // Reduce Motion: time stands still, so the fade comes from here
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .ignoresSafeArea()
@@ -57,11 +65,16 @@ struct Celebration: View {
         .task {
             particles = Self.rings()
             start = .now
-            guard !reduceMotion else { return }
-            for i in Self.spots.indices {  // one thump as each stamp lands
-                try? await Task.sleep(for: .seconds(i == 0 ? Self.landing(0) : Self.landing(i) - Self.landing(i - 1)))
-                thumps += 1
+            if !reduceMotion {
+                for i in Self.spots.indices {  // one thump as each stamp lands
+                    try? await Task.sleep(for: .seconds(i == 0 ? Self.landing(0) : Self.landing(i) - Self.landing(i - 1)))
+                    thumps += 1
+                }
             }
+            try? await Task.sleep(for: .seconds(duration - 0.6 - (reduceMotion ? 0 : Self.landing(2))))
+            if reduceMotion { withAnimation(.easeOut(duration: 0.6)) { fading = true } }
+            try? await Task.sleep(for: .seconds(0.6))
+            finished = true
         }
     }
 
