@@ -293,6 +293,9 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.
 - **Add trip shows its stamp before saving.** The stamp is generated when the form opens, so you see what the trip will look like.
 - **Tap the stamp to regenerate it** while creating a trip. Once the trip exists the stamp is fixed.
+- **Add trip can go back from Add members** to fix the name or dates. The trip is saved on the first Save; going back edits that same trip (Save returns to Add members), and Cancel after that point keeps it. Delete trip undoes a trip made by mistake.
+- **Trip dates open an inline calendar** under the Start or End row (the Calendar app's pattern; tap the row again to close), instead of the compact picker's popover, which handed focus back to the name and flashed the keyboard.
+- **Add members picks, then joins on Save:** tapping someone under "On TripSplit" checks them (tap again to uncheck). They join only when you tap Save on Edit trip, or Done in the Add trip flow; picked people show on Edit trip's member list, where a swipe removes them, and Cancel adds no one. Sharing the link is unchanged.
 - **The + button** adds an expense, or starts a trip when you have none (the Figma header). Another trip starts from an "Add trip" button under the trip cards on Trips.
 
 ### Assumed in the prototype, not yet confirmed
