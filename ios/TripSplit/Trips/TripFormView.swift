@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Add trip and Edit trip. Adding opens Add members next (members aren't required); you can go back from there to
 /// fix the name or dates. People picked in Add members join only on Save (Edit trip) or Done (Add trip).
@@ -57,13 +58,11 @@ struct TripFormView: View {
                 Section {
                     Toggle("Dates", isOn: $hasDates.animation())
                     if hasDates {
-                        DatePicker("Start", selection: $start, displayedComponents: .date)
-                        DatePicker("End", selection: $end, in: start..., displayedComponents: .date)
+                        DatePicker("Start", selection: $start, displayedComponents: .date).simultaneousGesture(endEditingOnTouch)
+                        DatePicker("End", selection: $end, in: start..., displayedComponents: .date).simultaneousGesture(endEditingOnTouch)
                     }
                 } footer: { Text("Optional. A start and an end.") }
-                // Touching the dates ends editing the name; otherwise the keyboard stays up, keeps typing into the
-                // name, and comes back when a date picker closes.
-                .simultaneousGesture(TapGesture().onEnded { nameFocused = false })
+                // Touching the dates ends editing the name; otherwise the keyboard stays up and keeps typing into it.
                 .onChange(of: hasDates) { nameFocused = false }
 
                 if let trip = liveTrip {
@@ -132,6 +131,16 @@ struct TripFormView: View {
                 Button("Retry") { Task { await retry?() } }
                 Button("Cancel", role: .cancel) {}
             } message: { Text(error ?? "") }
+        }
+    }
+
+    /// A date picker's calendar hands focus back to whatever had it when it opened, so the name has to let go on
+    /// touch-down, before the calendar appears, or the keyboard returns when the calendar closes.
+    private var endEditingOnTouch: some Gesture {
+        DragGesture(minimumDistance: 0).onChanged { _ in
+            guard nameFocused else { return }
+            nameFocused = false
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     }
 
