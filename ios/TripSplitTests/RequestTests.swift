@@ -21,6 +21,12 @@ struct RequestTests {
         #expect(j["stamp"] is [String: Any])  // an edited stamp is saved with the details
     }
 
+    @Test func unchangedStampIsLeftOut() throws {
+        // Sending it would overwrite a stamp another member saved while this form was open.
+        let j = try json(TripDetailsUpdate(name: "Coast Road", stamp: nil, start_date: nil, end_date: nil))
+        #expect(j["stamp"] == nil)
+    }
+
     @Test func turningOffVenmoClearsTheUsername() throws {
         let j = try json(PayMethodsUpdate(venmo_username: nil, has_zelle: false, has_apple_cash: true))
         #expect(j["venmo_username"] is NSNull)

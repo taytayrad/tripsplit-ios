@@ -284,7 +284,7 @@ final class AppModel {
         return trip
     }
 
-    func updateTrip(_ id: UUID, name: String, stamp: StampSpec, start: Date?, end: Date?) async throws {
+    func updateTrip(_ id: UUID, name: String, stamp: StampSpec?, start: Date?, end: Date?) async throws {
         try await db.from("trips").update(TripDetailsUpdate(name: name, stamp: stamp, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
             .eq("id", value: id).run()
         await refresh()

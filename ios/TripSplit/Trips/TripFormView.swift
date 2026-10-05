@@ -190,7 +190,7 @@ struct TripFormView: View {
         retry = { await save() }
         do {
             if let t = editing {
-                try await app.updateTrip(t.id, name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
+                try await app.updateTrip(t.id, name: trimmed, stamp: stamp == t.stamp ? nil : stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 if isAdding { openMembers() } else { try await addPicked(to: t.id); dismiss() }
             } else {
                 created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)

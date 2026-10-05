@@ -23,7 +23,8 @@ struct CreateTripArgs: Encodable {
 
 struct TripDetailsUpdate: Encodable {
     let name: String
-    let stamp: StampSpec
+    /// Nil when it wasn't changed, so the save keeps a stamp someone else picked meanwhile.
+    let stamp: StampSpec?
     let start_date: String?
     let end_date: String?
     enum CodingKeys: String, CodingKey { case name, stamp, start_date, end_date }
@@ -31,7 +32,7 @@ struct TripDetailsUpdate: Encodable {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)
-        try c.encode(stamp, forKey: .stamp)
+        try c.encodeIfPresent(stamp, forKey: .stamp)
         try c.encode(start_date, forKey: .start_date)
         try c.encode(end_date, forKey: .end_date)
     }
