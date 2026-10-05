@@ -28,6 +28,7 @@ struct TripFormView: View {
     @State private var removing: Member?
     @State private var confirmDelete = false
     @State private var error: String?
+    @State private var errorTitle = "Couldn’t save"
     /// What Retry in the error alert does again.
     @State private var retry: (() async -> Void)?
 
@@ -66,13 +67,15 @@ struct TripFormView: View {
                         }
                         dateRow("End", end, .end)
                         if openDate == .end {
-                            DatePicker("End", selection: $end, in: start..., displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
+                            DatePicker("End", selection: $end, in: Calendar.current.startOfDay(for: start)..., displayedComponents: .date).datePickerStyle(.graphical).labelsHidden()
                         }
                     }
                 } footer: { Text("Optional. A start and an end.") }
                 // Touching the dates ends editing the name; otherwise the keyboard stays up and keeps typing into it.
                 .onChange(of: hasDates) { nameFocused = false; openDate = nil }
-                .onChange(of: start) { if end < start { end = start } }
+                .onChange(of: start) {  // compare days: `start` carries a time of day
+                    if Calendar.current.startOfDay(for: end) < Calendar.current.startOfDay(for: start) { end = start }
+                }
                 .onChange(of: nameFocused) { if nameFocused { withAnimation { openDate = nil } } }
 
                 if let trip = liveTrip {
@@ -80,7 +83,7 @@ struct TripFormView: View {
                         ForEach(trip.members, id: \.userId) { m in
                             Text(m.userId == app.userId ? "You" : m.profiles.displayName)
                                 .swipeActions {
-                                    if m.userId != app.userId {
+                                    if m.userId != app.userId, !saving {
                                         Button("Remove", role: .destructive) { removing = m }
                                     }
                                 }
@@ -91,7 +94,7 @@ struct TripFormView: View {
                                 Spacer()
                                 Text(isAdding ? "Joins when you tap Done" : "Joins when you save").font(.footnote).foregroundStyle(Color.tsSecondary)
                             }
-                            .swipeActions { Button("Remove", role: .destructive) { picked.remove(person.id) } }
+                            .swipeActions { if !saving { Button("Remove", role: .destructive) { picked.remove(person.id) } } }
                         }
                         Button { openMembers() } label: {
                             HStack {
@@ -100,9 +103,10 @@ struct TripFormView: View {
                                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
                             }
                         }
+                        .disabled(saving)
                     }
                     Section {
-                        Button("Delete trip", role: .destructive) { confirmDelete = true }
+                        Button("Delete trip", role: .destructive) { confirmDelete = true }.disabled(saving)
                     }
                 }
             }
@@ -111,7 +115,7 @@ struct TripFormView: View {
             .navigationTitle(isAdding ? "Add trip" : "Edit trip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { cancel() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { cancel() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { Task { await save() } }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
@@ -138,7 +142,7 @@ struct TripFormView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) { Task { await deleteTrip() } }
             } message: { Text("Its balances stop counting. Anyone on the trip can undelete it from Activity.") }
-            .alert("Couldn’t save", isPresented: .init(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            .alert(errorTitle, isPresented: .init(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("Retry") { Task { await retry?() } }
                 Button("Cancel", role: .cancel) {}
             } message: { Text(error ?? "") }
@@ -182,6 +186,7 @@ struct TripFormView: View {
     /// Edit trip: save the details, then add the people picked. Add trip: create the trip (or update the one
     /// already created, after going back) and go to Add members.
     private func save() async {
+        guard !saving else { return }  // a second tap before the first await would create a second trip
         saving = true; defer { saving = false }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         retry = { await save() }
@@ -193,7 +198,7 @@ struct TripFormView: View {
                 created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 openMembers()
             }
-        } catch { self.error = AppModel.describe("Check your connection and try again.", error) }
+        } catch { errorTitle = "Couldn’t save"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 
     /// Done in Add members, in the Add trip flow.
@@ -205,13 +210,14 @@ struct TripFormView: View {
             try await addPicked(to: trip.id)
             onCreated(trip)
             dismiss()
-        } catch { self.error = AppModel.describe("Couldn’t add everyone. Check your connection and try again.", error) }
+        } catch { errorTitle = "Couldn’t add everyone"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 
     /// Each person leaves `picked` as soon as they're added, so after a partial failure only the unfinished ones
     /// are retried (and removing someone who did get added isn't undone by a later Save).
     private func addPicked(to trip: UUID) async throws {
         for id in picked {
+            guard picked.contains(id) else { continue }  // un-picked since the loop started
             try await app.addMember(id, to: trip)
             picked.remove(id)
         }
@@ -226,13 +232,15 @@ struct TripFormView: View {
     private func remove(_ m: Member, keep: Bool) async {
         guard let t = editing else { return }
         retry = { await remove(m, keep: keep) }
-        do { try await app.removeMember(m.userId, from: t.id, keepBalance: keep) } catch { self.error = AppModel.describe("Couldn’t remove them. Try again.", error) }
+        do { try await app.removeMember(m.userId, from: t.id, keepBalance: keep) }
+        catch { errorTitle = "Couldn’t remove them"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 
     private func deleteTrip() async {
         guard let t = editing else { return }
         retry = { await deleteTrip() }
-        do { try await app.deleteTrip(t.id); dismiss() } catch { self.error = AppModel.describe("Couldn’t delete the trip. Try again.", error) }
+        do { try await app.deleteTrip(t.id); dismiss() }
+        catch { errorTitle = "Couldn’t delete the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 }
 
