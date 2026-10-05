@@ -115,7 +115,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 - Pay bar: shared methods only (absent, never disabled), Cash always shown, Record a Payment for people who owe you.
 - Pay apps: Venmo opens prefilled; Zelle and Apple Cash (via Messages) open with the amount copied.
 - Log sheet: prefilled, editable on a decimal pad, capped at the amount owed with a reason, the allocation note when the payment touches more than one trip, "Not yet". Cash uses it as the confirm step.
-- Settled state: "Settled / $0 / You and Alex are settled", confetti (static under Reduce Motion), pay bar removed.
+- Settled state: "Settled / $0 / You and Alex are settled", a stamp slam (still stamps under Reduce Motion), pay bar removed.
 - Payment delete (payer or payee).
 
 **Exit criteria**

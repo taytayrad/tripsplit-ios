@@ -21,6 +21,11 @@ struct ExpenseLogicTests {
         #expect(Money.cleanAmountInput(typed) == kept)
     }
 
+    @Test(arguments: [(8420, "84.20"), (9000, "90"), (5, "0.05"), (-9050, "-90.50"), (-9000, "-90")])
+    func plainAmountsKeepTheirSign(_ cents: Int, _ text: String) {
+        #expect(Money.plain(cents) == text)
+    }
+
     @Test(arguments: [("84.20", 8420), ("84,20", 8420), ("84.2", 8420), ("$90", 9000), (".5", 50), ("9999999.99", 999_999_999),
                       ("84.20oops", nil), ("84.2.0", nil), ("84.205", nil), ("10000000", nil), ("", nil), ("٨٤", nil)])
     func centsParseTheWholeInputOrNothing(_ text: String, _ cents: Int?) {

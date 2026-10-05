@@ -323,7 +323,10 @@ private struct DeleteExpenseAlert: ViewModifier {
 
 extension Money {
     /// "84.20" for a text field; "90" when whole.
-    static func plain(_ cents: Int) -> String { cents % 100 == 0 ? "\(cents / 100)" : String(format: "%d.%02d", cents / 100, cents % 100) }
+    static func plain(_ cents: Int) -> String {
+        let a = abs(cents)
+        return (cents < 0 ? "-" : "") + (a % 100 == 0 ? "\(a / 100)" : String(format: "%d.%02d", a / 100, a % 100))
+    }
 
     /// What the amount field keeps as you type (or paste): digits and one decimal point. A comma is the point
     /// on decimal-comma keyboards, so it's kept as "."; nothing else gets in.

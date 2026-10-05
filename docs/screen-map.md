@@ -26,7 +26,9 @@ flowchart LR
     welcome -->|Add expense| expense
 
     chip(("Balance chip")) --> balance["Your Balance [13]"] --> person["Person [14, 18, P1]"]
-    person -- "Venmo / Apple Cash" --> payapp["Pay app<br/>(outside TripSplit)"] --> log["Log sheet [16, 19, P3]"]
+    person -- "Venmo" --> payapp["Pay app<br/>(outside TripSplit)"] --> log["Log sheet [16, 19, P3]"]
+    person -- "Apple Cash" --> cashguide["Apple Cash guide"] -- "Open Messages" --> payapp
+    person -- "Zelle (amount copied)" --> log
     person -- "Cash / Record" --> log
     log --> settled["Person: $0 or remaining [17, 20, P5, P6]"]
 
@@ -57,6 +59,7 @@ flowchart LR
 | Trip detail, Add members | pushed in `NavigationStack` |
 | Add trip, Expense form | `.sheet` with its own `NavigationStack` (payer and split pickers push inside it) |
 | Your Balance → Person | `.sheet` with `NavigationStack` (person pushes inside it) |
+| Apple Cash guide | `.sheet` (large, scrolls) over the person screen; Open Messages leaves for the Messages app, and coming back opens the log sheet |
 | Log sheet | `.sheet` with medium detent, over the person screen |
 | Welcome modal | `.sheet` or centered overlay after onboarding |
 | Delete, undelete, and sign-out confirms | `.alert` |
