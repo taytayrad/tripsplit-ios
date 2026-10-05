@@ -78,6 +78,9 @@ struct PersonView: View {
     @State private var logging: LogContext?
     /// A pay app you opened; returning to TripSplit asks whether you paid (it logs nothing by itself).
     @State private var awaitingReturn: PayMethod?
+    @State private var payingWithAppleCash = false
+    /// Messages closed from the Apple Cash guide: ask "Did you pay?" once the guide is gone.
+    @State private var askAfterAppleCash = false
     @State private var deleting: PersonLedger.Line?
 
     private var name: String { app.name(of: personId) }
@@ -112,7 +115,7 @@ struct PersonView: View {
         }
         .listSectionSpacing(.compact)
         .contentMargins(.top, 0, for: .scrollContent)
-        .overlay(alignment: .top) { if !loggedHere.isEmpty && ledger.total == 0 { Confetti() } }  // settled by a payment here
+        .overlay { if !loggedHere.isEmpty && ledger.total == 0 { Celebration(stamps: settledStamps) } }  // settled by a payment here
         .safeAreaInset(edge: .bottom) { payBar(total: ledger.total) }
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
@@ -121,6 +124,11 @@ struct PersonView: View {
             guard phase == .active, let method = awaitingReturn else { return }
             awaitingReturn = nil
             logging = LogContext(direction: .pay, method: method)
+        }
+        .sheet(isPresented: $payingWithAppleCash, onDismiss: {
+            if askAfterAppleCash { askAfterAppleCash = false; logging = LogContext(direction: .pay, method: .appleCash) }
+        }) {
+            AppleCashGuide(otherName: name, cents: -ledger.total) { askAfterAppleCash = true }
         }
         .sheet(item: $logging) { context in
             LogPaymentSheet(context: context, otherId: personId, otherName: name, max: LogPayment.max(total: ledger.total, direction: context.direction),
@@ -141,6 +149,9 @@ struct PersonView: View {
     }
 
     private var loggedHere: [Payment] { app.payments.filter { loggedIds.contains($0.id) } }
+
+    /// The stamps of the trips a payment here settled, for the celebration.
+    private var settledStamps: [StampSpec] { keep.compactMap { app.trip($0)?.stamp } }
 
     private func label(_ total: Int) -> String {
         total < 0 ? "You owe \(name)" : total > 0 ? "\(name) owes you" : "Settled"
@@ -178,7 +189,7 @@ struct PersonView: View {
                     case .zelle:
                         Button("Zelle") { copy(-total); logging = LogContext(direction: .pay, method: .zelle) }.buttonStyle(PrimaryButtonStyle())
                     case .appleCash:
-                        Button("Apple Cash") { openMessages(cents: -total) }.buttonStyle(PrimaryButtonStyle())
+                        Button("Apple Cash") { payingWithAppleCash = true }.buttonStyle(PrimaryButtonStyle())
                     case .cash:
                         Button("Cash") { logging = LogContext(direction: .pay, method: .cash) }.buttonStyle(SecondaryButtonStyle())
                     case .record:
@@ -199,13 +210,6 @@ struct PersonView: View {
                           .init(name: "amount", value: Money.plain(cents)), .init(name: "note", value: "TripSplit")]
         awaitingReturn = .venmo
         openURL(url.url!)
-    }
-
-    /// Apple Cash is sent from Messages; the amount goes on the clipboard (no phone number to prefill).
-    private func openMessages(cents: Int) {
-        copy(cents)
-        awaitingReturn = .appleCash
-        openURL(URL(string: "sms:")!)
     }
 
     private func copy(_ cents: Int) { UIPasteboard.general.string = Money.plain(cents) }
@@ -231,33 +235,4 @@ struct LogContext: Identifiable {
     let id = UUID()
     let direction: LogPayment.Direction
     let method: PayMethod
-}
-
-/// The settle-to-$0 burst in the stamp inks (Figma Confetti). Pieces fall once and stay; static under Reduce Motion.
-struct Confetti: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var landed = false
-    @State private var pieces = (0..<44).map { i in
-        (x: Double.random(in: 0...1), y: Double.random(in: 0...1), angle: Double.random(in: -90...90),
-         width: Double.random(in: 5...9), height: Double.random(in: 8...14), ink: StampInk.allCases[i % StampInk.allCases.count])
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            ForEach(pieces.indices, id: \.self) { i in
-                let p = pieces[i]
-                RoundedRectangle(cornerRadius: 1.5).fill(p.ink.ink.opacity(0.85))
-                    .frame(width: p.width, height: p.height)
-                    .rotationEffect(.degrees(landed ? p.angle : p.angle - 180))
-                    .position(x: p.x * geo.size.width, y: landed ? p.y * geo.size.height : p.y * geo.size.height - geo.size.height)
-            }
-        }
-        .frame(height: 360)
-        .opacity(0.6)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .onAppear {
-            if reduceMotion { landed = true } else { withAnimation(.easeOut(duration: 1.4)) { landed = true } }
-        }
-    }
 }
