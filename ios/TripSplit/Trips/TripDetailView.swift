@@ -5,7 +5,6 @@ struct TripDetailView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
-    @State private var deleting: Expense?
 
     var body: some View {
         if let trip = app.trip(tripId) {
@@ -17,10 +16,15 @@ struct TripDetailView: View {
                             TripAvatar(trip: trip, size: 64)
                             Text(trip.name).font(.largeTitle.bold())
                         }
+                        // Either chip opens Edit trip, where the dates and members are changed.
                         HStack(spacing: Spacing.sm) {
-                            if let start = trip.start, let end = trip.end { Chip(text: DayFormat.range(start, end)) }
-                            Chip(text: trip.members.count == 1 ? "1 member" : "\(trip.members.count) members")
+                            if let start = trip.start, let end = trip.end {
+                                Button { editing = true } label: { Chip(text: DayFormat.range(start, end)) }
+                            }
+                            Button { editing = true } label: { Chip(text: trip.members.count == 1 ? "1 member" : "\(trip.members.count) members") }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Double tap to edit the trip")
                         BalanceBlock(cents: app.nets[trip.id] ?? 0)
                     }
                     .listRowBackground(Color.clear)
@@ -39,8 +43,7 @@ struct TripDetailView: View {
                         ForEach(expenses) { expense in
                             ExpenseRow(expense: expense, trip: trip)
                                 .contentShape(.rect)
-                                .onTapGesture { app.expenseSheet = .edit(expense) }
-                                .swipeActions { Button("Delete", role: .destructive) { deleting = expense } }
+                                .onTapGesture { app.expenseSheet = .edit(expense) }  // delete from there; no swipe
                         }
                         Button("Add expense") { app.addExpense(on: trip.id) }.foregroundStyle(Color.tsTintFill)
                     }
@@ -52,7 +55,6 @@ struct TripDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
             .sheet(isPresented: $editing) { TripFormView(mode: .edit(trip)) }
-            .deleteExpenseAlert(expense: $deleting, tripName: trip.name)
         } else {
             // The trip was deleted (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }

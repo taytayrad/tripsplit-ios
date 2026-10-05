@@ -15,9 +15,16 @@ struct RequestTests {
     }
 
     @Test func removingDatesSendsNull() throws {
-        let j = try json(TripDetailsUpdate(name: "Coast Road", start_date: nil, end_date: nil))
+        let j = try json(TripDetailsUpdate(name: "Coast Road", stamp: .random(), start_date: nil, end_date: nil))
         #expect(j["start_date"] is NSNull)
         #expect(j["end_date"] is NSNull)
+        #expect(j["stamp"] is [String: Any])  // an edited stamp is saved with the details
+    }
+
+    @Test func unchangedStampIsLeftOut() throws {
+        // Sending it would overwrite a stamp another member saved while this form was open.
+        let j = try json(TripDetailsUpdate(name: "Coast Road", stamp: nil, start_date: nil, end_date: nil))
+        #expect(j["stamp"] == nil)
     }
 
     @Test func turningOffVenmoClearsTheUsername() throws {

@@ -258,7 +258,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 
 ### Expenses
 - **Edit:** tapping an expense opens the add form as a sheet, filled in, titled "Edit expense", with Cancel and Save. "Delete expense" sits at the bottom. A line under it says who added the expense and when ("Added by you · Today, 9:41 AM").
-- **Delete:** from the edit form, or by swiping left on the expense row. Both ask: "Delete 'Costco'?" / "It comes off everyone's balance on Coast Road. This can't be undone." with Cancel and Delete.
+- **Delete:** from the edit form only; expense rows have no swipe to delete. It asks: "Delete 'Costco'?" / "It comes off everyone's balance on Coast Road. This can't be undone." with Cancel and Delete.
 - **Deletes are permanent.** Undeleting a trip brings back only the expenses that existed when the trip was deleted. An expense deleted on its own stays deleted.
 - **Default trip after an invite:** Add expense started from the invite modal (or as your first expense after joining) preselects the trip you were just added to.
 
@@ -292,10 +292,11 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Trip is locked while editing an expense.** Moving an expense between trips would change two trips' balances; delete and re-add instead.
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.
 - **Add trip shows its stamp before saving.** The stamp is generated when the form opens, so you see what the trip will look like.
-- **Tap the stamp to regenerate it** while creating a trip. Once the trip exists the stamp is fixed.
+- **Tap the stamp to regenerate it,** on Add trip or Edit trip. The new stamp is kept on Save; Cancel keeps the old one.
 - **Add trip can go back from Add members** to fix the name or dates. The trip is saved on the first Save; going back edits that same trip (Save returns to Add members), and Cancel after that point keeps it. Delete trip undoes a trip made by mistake.
 - **Trip dates open an inline calendar** under the Start or End row (the Calendar app's pattern; tap the row again to close), instead of the compact picker's popover, which handed focus back to the name and flashed the keyboard.
 - **Add members picks, then joins on Save:** tapping someone under "On TripSplit" checks them (tap again to uncheck). They join only when you tap Save on Edit trip, or Done in the Add trip flow; picked people show on Edit trip's member list, where a swipe removes them, and Cancel adds no one. Sharing the link is unchanged.
+- **Trip detail chips open Edit trip:** tapping the dates chip or the members chip opens the same Edit trip sheet as the Edit button.
 - **The + button** adds an expense, or starts a trip when you have none (the Figma header). Another trip starts from an "Add trip" button under the trip cards on Trips.
 - **Expense row caption names the full amount (supersedes "It does not show the full expense amount"):** the caption under an expense's title is "{Name} paid $X" or "You paid $X", then the day ("Alex paid $120 · Oct 3"), where $X is the whole expense. The amount on the right is still only your part, so you can see how it was split. Applies wherever Expense Row appears (trip and person screens).
 - **Person screen lines use Expense Row:** each expense on a person's screen has its icon, title, caption, and "You owe" or "You lent" with only the amount between the two of you (your share when they paid, their share when you paid). Payments use the same row with a transfer icon, "You paid" or "Alex paid you", the method and day as the caption ("Venmo · Today"; a recorded payment shows only the day), and a gray amount with no label. Tapping an expense opens its edit form, as on the trip (not on a trip you were removed from, which you can't edit). When an expense is entirely your own cost, its right side and caption both read "You paid $X"; that repeat is accepted for now.

@@ -9,7 +9,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Action | Who | Notes |
 |---|---|---|
 | Create a trip | any signed-in user | creator becomes a member |
-| Edit trip name, dates | active member | |
+| Edit trip name, dates, stamp | active member | |
 | Add a member, share the invite link | active member | 20-member cap |
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
 | Remove a member (keep or wipe) | active member | the remover chooses keep or wipe |
@@ -25,7 +25,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Table | Select | Insert / update / delete from the client |
 |---|---|---|
 | `profiles` | self; anyone you've shared a trip with, including removed members (a removed member's name stays on the trip, and with keep they still settle up) | self, update only |
-| `trips` | active members | none (use `create_trip`, `delete_trip`, `undelete_trip`). Name and dates can be updated by active members. |
+| `trips` | active members | none (use `create_trip`, `delete_trip`, `undelete_trip`). Name, dates, and stamp can be updated by active members. |
 | `trip_members` | active members of the trip | none (use `join_trip`, `remove_member`) |
 | `expenses`, `expense_shares` | active members | none (use `save_expense`, `delete_expense`) |
 | `payments` | active members, plus a removed-with-keep payer or payee for their own rows | none (use `log_payment`, `delete_payment`) |
