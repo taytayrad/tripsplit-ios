@@ -1,7 +1,7 @@
 -- Access rules (docs/permissions.md): who can read what, and that money tables only change via functions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 select tests.users('you', 'alex', 'olive');  -- Olive is an outsider
 select tests.trip('cr', array['you', 'alex']);
@@ -44,6 +44,8 @@ select throws_ok(format('update public.trips set deleted_at = now() where id = %
 -- What members can edit directly: trip details and their own profile.
 update public.trips set name = 'Coast Road 2026' where id = tests.id('cr');
 select is((select name from public.trips where id = tests.id('cr')), 'Coast Road 2026', 'trips: members can rename');
+update public.trips set stamp = '{"shape":"circle"}' where id = tests.id('cr');
+select is((select stamp->>'shape' from public.trips where id = tests.id('cr')), 'circle', 'trips: members can change the stamp');
 update public.profiles set display_name = 'Hacked' where id = tests.id('alex');
 select tests.authenticate_as(tests.id('alex'));
 select isnt((select display_name from public.profiles where id = tests.id('alex')), 'Hacked', 'profiles: can''t edit someone else''s');

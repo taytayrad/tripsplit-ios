@@ -10,7 +10,7 @@ struct TripFormView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
-    @State private var stamp = StampSpec.random()  // the new trip's stamp, shown before saving
+    @State private var stamp = StampSpec.random()  // a new trip's stamp shows before saving; tap for another
     @State private var hasDates = false
     @State private var start = Date.now
     @State private var end = Date.now
@@ -40,16 +40,13 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    if let live = liveTrip {
-                        StampAvatar(spec: live.stamp, size: 96).frame(maxWidth: .infinity)
-                    } else {
-                        Button { withAnimation { stamp = .random() } } label: {
-                            StampAvatar(spec: stamp, size: 96).frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Trip stamp")
-                        .accessibilityHint("Double tap for a different stamp")
+                    Button { withAnimation { stamp = .random() } } label: {
+                        StampAvatar(spec: stamp, size: 96).frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(saving)
+                    .accessibilityLabel("Trip stamp")
+                    .accessibilityHint("Double tap for a different stamp")
                 }
                 .listRowBackground(Color.clear)
 
@@ -180,6 +177,7 @@ struct TripFormView: View {
     private func load() {
         guard let t = editing else { return }
         name = t.name
+        stamp = t.stamp
         if let s = t.start, let e = t.end { hasDates = true; start = s; end = e }
     }
 
@@ -192,7 +190,7 @@ struct TripFormView: View {
         retry = { await save() }
         do {
             if let t = editing {
-                try await app.updateTrip(t.id, name: trimmed, start: hasDates ? start : nil, end: hasDates ? end : nil)
+                try await app.updateTrip(t.id, name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 if isAdding { openMembers() } else { try await addPicked(to: t.id); dismiss() }
             } else {
                 created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)

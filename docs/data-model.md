@@ -143,7 +143,7 @@ Every multi-row money write is one function in one transaction, so invariants ho
 - **Realtime:** the publication holds `trips`, `trip_members`, `payments`, and `activity_events`, and the app re-queries on any change. `expenses` and `expense_shares` are left out on purpose: their DELETE events would reach every subscriber. Every change to them writes an `activity_events` row, and that row is the signal.
 - **Function privileges:** Postgres grants EXECUTE on new functions to PUBLIC. Every function in `public` is revoked from `public` and `anon`. The functions the app calls are granted to `authenticated` explicitly. The three trigger functions (`enforce_member_limit`, `check_share_sum`, `handle_new_user`) are revoked from `authenticated` too and run only as triggers. `invite_preview` is the one function `anon` may execute. pgTAP (`005_access`) fails if anything else is callable signed out.
 - **Leftover bucket:** the private `trip-photos` storage bucket still exists, empty. Trip photos were removed (stamps only), and Supabase refuses deleting storage rows from SQL, so remove it from the dashboard if you want it gone.
-- **Stamp** is stored, not regenerated, so a trip looks the same on every device. Its JSON matches the app's `StampSpec` (`ios/TripSplit/DesignSystem/Stamp.swift`):
+- **Stamp** is stored, not regenerated, so a trip looks the same on every device. Members can change it from Edit trip (a direct column update, like name and dates). Its JSON matches the app's `StampSpec` (`ios/TripSplit/DesignSystem/Stamp.swift`):
   ```json
   {"shape": "ticket", "glyph": "road", "ink": "blue", "rotation": -6.0, "offsetX": 0.02, "offsetY": -0.015}
   ```
