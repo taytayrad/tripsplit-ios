@@ -20,6 +20,7 @@ flowchart LR
     trips -- card --> trip
     trip -- "Add expense" --> expense["Expense form [09, E1]"]
     trip -- "expense row" --> expense
+    trip -- "amount you owe (picker if several)" --> person
     expense --> paidby["Paid by [09a]"]
     expense --> split["Split [09b–09e]"]
     expense -- delete --> delconfirm["Delete confirm [E2]"]
