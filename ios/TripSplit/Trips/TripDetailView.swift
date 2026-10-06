@@ -5,6 +5,10 @@ struct TripDetailView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
+    /// The person whose screen is pushed to settle up.
+    @State private var paying: UUID?
+    /// Who you owe on this trip, when it's more than one person: the tap asks which.
+    @State private var choosing: [PairBalance] = []
 
     var body: some View {
         if let trip = app.trip(tripId) {
@@ -25,7 +29,15 @@ struct TripDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Double tap to edit the trip")
-                        BalanceBlock(cents: app.nets[trip.id] ?? 0)
+                        let net = app.nets[trip.id] ?? 0
+                        if net < 0 {
+                            // What you owe here settles on that person's screen (their pay bar, their whole balance).
+                            Button { settleUp(trip) } label: { BalanceBlock(cents: net) }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Double tap to settle up")
+                        } else {
+                            BalanceBlock(cents: net)
+                        }
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
@@ -55,10 +67,25 @@ struct TripDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
             .sheet(isPresented: $editing) { TripFormView(mode: .edit(trip)) }
+            .navigationDestination(item: $paying) { PersonView(personId: $0) }
+            .confirmationDialog("Who are you paying?", isPresented: .init(get: { !choosing.isEmpty }, set: { if !$0 { choosing = [] } }),
+                                titleVisibility: .visible) {
+                ForEach(choosing, id: \.otherUserId) { pair in
+                    Button("\(app.name(of: pair.otherUserId)) · \(Money.string(pair.cents))") { paying = pair.otherUserId }
+                }
+            }
         } else {
             // The trip was deleted (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }
         }
+    }
+}
+
+extension TripDetailView {
+    /// One person you owe here: straight to their screen. Several: pick, most owed first.
+    private func settleUp(_ trip: Trip) {
+        let owed = app.pairs.filter { $0.tripId == trip.id && $0.cents < 0 }.sorted { $0.cents < $1.cents }
+        if owed.count == 1 { paying = owed[0].otherUserId } else { choosing = owed }
     }
 }
 
