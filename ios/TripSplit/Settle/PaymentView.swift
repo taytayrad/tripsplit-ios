@@ -125,11 +125,16 @@ struct PaymentView: View {
             }
         }
         .sheet(isPresented: $appleCash) {
-            AppleCashGuide(otherName: name, cents: cents ?? 0) { awaitingReturn = true }
+            // Live: if the balance changes while the guide is open, it follows (and won't open Messages over the limit).
+            AppleCashGuide(otherName: name, cents: parts == nil ? 0 : cents ?? 0, problem: problem) {
+                pending = currentAllocation  // the payment starts now, as Messages opens
+                awaitingReturn = true
+            }
         }
     }
 
     private var amount: String { Money.string(cents ?? 0) }
+    private var currentAllocation: [SettleTicket.Part]? { parts?.map { SettleTicket.Part(tripId: $0.trip_id, cents: $0.cents) } }
     private var pendingTotal: Int { (pending ?? chosenParts).reduce(0) { $0 + $1.cents } }
 
     private var cta: String {
@@ -172,7 +177,7 @@ struct PaymentView: View {
         // Checked against live balances right before money leaves TripSplit.
         guard let cents, let parts else { return }
         amountFocused = false
-        pending = parts.map { SettleTicket.Part(tripId: $0.trip_id, cents: $0.cents) }
+        if chosen != .appleCash || ticket.direction == .record { pending = parts.map { SettleTicket.Part(tripId: $0.trip_id, cents: $0.cents) } }
         if ticket.direction == .record || chosen == .cash || chosen == .recorded {
             Task { await logNow(cents) }
             return
