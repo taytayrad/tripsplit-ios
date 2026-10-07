@@ -39,11 +39,12 @@ select tests.equal('lhP', 'alexP', 3000, array['youP']);   -- and 30 on Lake Hou
 select tests.authenticate_as(tests.id('youP'));
 create temp table t_req on commit drop as select gen_random_uuid() as id;
 grant select on t_req to authenticated;
-select public.log_payment(tests.id('alexP'), 9000, 'pay', 'venmo', (select id from t_req));
-select is((select count(*) from public.log_payment(tests.id('alexP'), 9000, 'pay', 'venmo', (select id from t_req)))::int, 2,
+select public.log_payment(tests.id('alexP'), 'pay', 'venmo', (select id from t_req), current_date, jsonb_build_array(jsonb_build_object('trip_id', tests.id('crP'), 'cents', 6000), jsonb_build_object('trip_id', tests.id('lhP'), 'cents', 3000)));
+select is((select count(*) from public.log_payment(tests.id('alexP'), 'pay', 'venmo', (select id from t_req), current_date, jsonb_build_array(jsonb_build_object('trip_id', tests.id('crP'), 'cents', 6000), jsonb_build_object('trip_id', tests.id('lhP'), 'cents', 3000))))::int, 2,
           'log_payment: the same person retrying gets their rows back');
 select tests.authenticate_as(tests.id('samP'));
-select throws_ok(format('select public.log_payment(%L, 9000, %L, %L, %L)', tests.id('alexP'), 'pay', 'venmo', (select id from t_req)),
+select throws_ok(format('select public.log_payment(%L, %L, %L, %L, current_date, %L::jsonb)', tests.id('alexP'), 'pay', 'venmo', (select id from t_req),
+                        jsonb_build_array(jsonb_build_object('trip_id', tests.id('crP'), 'cents', 100))),
                  'P0001', 'request id already used', 'log_payment: someone else''s request_id is refused');
 select tests.authenticate_as(tests.id('youP'));
 select public.delete_trip(tests.id('crP'));

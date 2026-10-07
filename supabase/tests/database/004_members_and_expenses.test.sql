@@ -32,7 +32,8 @@ select tests.authenticate_as(tests.id('alexK'));
 select is((select count(*) from public.trips where id = tests.id('crK'))::int, 0, 'keep: Alex can no longer see the trip');
 select is(pg_temp.pair('alexK', 'crK', 'youK'), -2806::bigint, 'keep: Alex still sees what they owe you');
 select tests.authenticate_as(tests.id('alexK'));
-select public.log_payment(tests.id('youK'), 2806, 'pay', 'cash', gen_random_uuid());
+select public.log_payment(tests.id('youK'), 'pay', 'cash', gen_random_uuid(), current_date,
+                          jsonb_build_array(jsonb_build_object('trip_id', tests.id('crK'), 'cents', 2806)));
 select is(pg_temp.pair('youK', 'crK', 'alexK'), 0::bigint, 'keep: a removed member can still pay');
 
 -- Wipe a debtor: Jordan's $28.08 share is re-split across You and Alex in proportion (1404 each).

@@ -1,7 +1,5 @@
 # Money rules
 
-> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
-
 The math every balance, split, and payment must follow. Code that touches money is correct only if it passes every **golden case** below. Turn each one into a test before writing the code it covers.
 
 Behavior and copy live in [`prd.md`](../prd.md). This file is the math. Terms are defined in [`glossary.md`](glossary.md).
@@ -33,63 +31,54 @@ Save is unavailable until the split is valid.
 
 ## Balances
 
-For one trip, from your point of view:
+Every member has **one net per trip**:
 
 ```
 net = paid − shares − payments_received + payments_made
 ```
 
-- `paid`: sum of `amount_cents` of expenses where you are the payer
-- `shares`: sum of your `share_cents` across the trip's expenses
-- `payments_received`: payments where you are the payee
-- `payments_made`: payments where you are the payer
+- `paid`: sum of `amount_cents` of expenses the member paid
+- `shares`: sum of the member's `share_cents` across the trip's expenses
+- `payments_received`: payments where the member is the payee
+- `payments_made`: payments where the member is the payer
 
-Positive means you are owed. Negative means you owe. Receiving a payment and making one both move you toward $0 (golden case M9).
+Positive means the member is owed (copy: "You lent" for you, "Gets back" for others). Negative means they owe ("You owe", "Owes"). The nets on a trip always add up to $0. Receiving a payment and making one both move a member toward $0 (golden case M9).
 
-### Pairwise balance (the building block)
+- **Deleted trips** contribute nothing anywhere. Undeleting restores every net exactly, because the stored rows were never changed.
+- **Settled** means a net of exactly $0. A trip is settled when every member is.
 
-The balance between you and person X on one trip:
+### Suggested payments
 
-```
-pair(you, X) =   Σ X's share  of expenses you paid
-               − Σ your share of expenses X paid
-               − Σ payments X made to you
-               + Σ payments you made to X
-```
+The fewest payments that bring every member of a trip to $0. Calculated on read, never stored.
 
-Positive means X owes you.
+1. Take every member whose net isn't $0.
+2. The largest debtor (most negative net) pays the largest creditor (most positive net) the smaller of the two amounts.
+3. Repeat with the updated nets until everyone is $0.
 
-- Your trip net equals the sum of `pair(you, X)` over every other person on the trip.
-- **No debt simplification.** If you owe Alex and Alex owes Jordan, you still owe Alex. Balances are always between the two people who shared the expense or payment.
-
-### Rolling up
-
-- **Combined balance** with X = Σ `pair(you, X)` over every trip you share with X that is **not deleted**.
-- **Header total** = Σ combined balances = Σ your trip nets over non-deleted trips.
-- **Deleted trips** contribute nothing anywhere. Undeleting restores their contribution exactly, because the stored rows were never changed.
-- **Removed members:** with *keep*, their pairwise balances still count and they can still be paid or recorded. With *wipe*, see below.
+Ties go to the lower user id, so every phone shows the same list. A trip with *n* members needs at most *n − 1* payments. **Suggestions can pair people who never shared an expense** (golden case G1): that's the point of simplifying.
 
 ### Who appears where
 
-- A trip card shows your trip net in words.
-- Your Balance lists each person whose combined balance is non-zero, under "You owe" (negative) or "Owes you" (positive), unsigned.
-- Settled trips: hidden from the trips list only when the trip has dates, the end date has passed, and your trip net is $0.
+- A trip card and Trip detail show your net on the trip in words.
+- **Settle up** lists one ticket per person you have a suggested payment with. From a trip, only that trip's; on All trips, summed per person across trips (one ticket per person and direction).
+- **Edit trip** lists every member's net.
+- Settled trips: hidden from the trips list only when the trip has dates, the end date has passed, and your net is $0.
 
 ## Payments
 
-### Allocation (paying or recording across trips)
+A payment is one payer, one payee, one trip, an amount, a date (`paid_on`, today by default) and a method. Logging one moves both nets on that trip and nothing else.
 
-When you log amount `A` with person X, `A` must be greater than 0 and no more than the combined balance in that direction (what you owe X when paying, what X owes you when recording). Overpaying isn't allowed in this pass: the log sheet disables Log and states the maximum.
+### Limits
 
-1. Take every non-deleted trip shared with X where the pairwise balance is in the payment's direction. For you paying X, that means trips where you owe X.
-2. Order them **oldest first**: by trip start date, and for trips without dates by created date.
-3. Fill each trip's open balance in order until `A` runs out. Each trip touched gets one `payment` row.
+On each trip, a payment can be at most what both sides allow: no more than the payer owes (−net) and no more than the payee is owed (+net). So paying someone who isn't owed is refused (golden case P3), and nobody's net can flip sign through a payment (P2). It doesn't have to match a suggestion.
 
-The log sheet must describe the allocation before logging whenever more than one trip is touched (see PRD › Prototype decisions).
+### Across trips
+
+Paying the total on an All-trips ticket ("2 Trips") logs **one payment per trip**, each for that trip's suggested amount, in one transaction. Paying less than the total fills the trips oldest first (by start date, then created date).
 
 ### Idempotency
 
-"A second log of the same payment is not a second payment." Each log carries a client-generated `request_id`. Logging the same `request_id` again returns the existing payments and creates nothing new.
+"A second log of the same payment is not a second payment." Each log carries a client-generated `request_id`. Logging the same `request_id` again returns the existing payments and creates nothing new; someone else reusing it is refused.
 
 ### Deletion
 
@@ -102,15 +91,9 @@ Either person on a payment can delete it (soft delete). Deleted payments are exc
 - A member added after an expense was saved is not on that expense.
 - Removing a member never rewrites expenses, except under *wipe*.
 
-## Wipe (removing a member and wiping their balance)
+## Removing and leaving
 
-**Accepted for the MVP** (PRD › Decisions › Wipe algorithm). It's a rare action and may change after user feedback.
-
-For removed member R on one trip:
-
-1. For each expense where R has `share_cents > 0` and R is not the payer, move R's share to the remaining included members of that expense in proportion to their current shares, using the remainder rule. If R was the only included person, move it to the payer.
-2. For each expense R paid, set every other member's share to 0 and R's share to the full amount. R absorbs their own payments, which cancels their credit.
-3. Payments involving R stay as recorded. If they leave R's pairwise balances non-zero, the remover is shown the leftover before confirming.
+A member can be removed, or leave, only when their net on the trip is exactly $0. Nothing is re-split or rewritten: a settled member's past expenses and payments stay as they were, and their net stays $0. (Keep and wipe are gone. Members removed with *keep* before the net model still count in the math until their net is $0.)
 
 ## Golden cases
 
@@ -135,26 +118,42 @@ Amounts in dollars for readability; implement in cents. Member order is as liste
 
 ### Balances
 
+Nets per member on one trip.
+
 | # | Setup | Expected |
 |---|---|---|
-| M1 | You pay $84.20, equal You/Alex/Jordan (S1) | You +56.14 · Alex −28.06 · Jordan −28.08 · pair(you, Alex) = +28.06 · pair(you, Jordan) = +28.08 |
+| M1 | You pay $84.20, equal You/Alex/Jordan (S1) | You +56.14 · Alex −28.06 · Jordan −28.08 |
 | M2 | You pay $30.00, equal Alex/Jordan only (payer outside split) | You +30.00 · Alex −15.00 · Jordan −15.00 |
-| M3 | PRD example: you owe Alex 90, Jordan 90, Connor 12; Tyler owes you 64 | header **−128** = −90 −90 −12 +64 |
-| M4 | Coast Road: you owe Alex 60. Lake House: you owe Alex 30 | combined with Alex −90, one row |
-| M5 | Coast Road: you owe Alex 20. Lake House: Alex owes you 20 | combined with Alex 0; Alex not listed on Your Balance |
-| M6 | M1, then Coast Road is deleted | header 0; Alex and Jordan not listed |
+| M6 | M1, then the trip is deleted | no nets anywhere |
 | M7 | M6, then undeleted | back to M1 exactly |
-| M8 | M1, then Sam joins Coast Road | M1 unchanged; Sam's net 0 |
-| M9 | M1, then Alex logs a $28.06 payment to you | You +28.08 · Alex 0 · pair(you, Alex) = 0 |
-| M10 | Alex pays $60 dinner, equal You/Alex/Jordan; you pay $30 gas, equal You/Alex/Jordan | pair(you, Alex) = 10 − 20 = **−10** (you owe Alex 10) |
+| M8 | M1, then Sam joins | M1 unchanged; Sam 0 |
+| M9 | M1, then Alex pays you $28.06 | You +28.08 · Alex 0 · Jordan −28.08 |
 
-### Allocation
+### Suggested payments
 
-| # | Setup | Log | Expected payment rows | Result |
-|---|---|---|---|---|
-| A1 | You owe Jordan: Lake House (Sep 12) 30, Coast Road (Oct 3) 60 | you pay 90 | LH 30, CR 60 | settled with Jordan |
-| A2 | same | you pay 50 | LH 30, CR 20 | you owe Jordan 40, all on CR |
-| A3 | same | you pay 20 | LH 20 | LH 10, CR 60 left |
-| A4 | same | you pay 100 | none: rejected | can't log more than the $90 owed |
-| A5 | Alex owes you 28.06 on Coast Road | you record 28.06 from Alex | CR 28.06 | settled with Alex |
-| A6 | A2, the same log repeated with the same `request_id` | — | no new rows | unchanged |
+| # | Setup | Expected suggestions |
+|---|---|---|
+| G1 | Coast Road: Tyler pays $60 stay, Atish pays $30 dinner, both equal You/Atish/Tyler | nets You −30 · Atish 0 · Tyler +30 → **You → Tyler 30** (Atish paid for your dinner but is settled) |
+| G2 | M1 | Jordan → You 28.08 · Alex → You 28.06 (largest debtor first) |
+| G3 | Ann pays $60 equal Ann/Cy; Bo pays $40 equal Bo/Di | Cy → Ann 30 · Di → Bo 20 (two payments, not three) |
+| G4 | G1, then you pay Tyler $10 | You → Tyler 20 |
+| G5 | G1, then you pay Tyler $30 | none: everyone settled |
+
+### Payments
+
+| # | Setup | Log | Expected |
+|---|---|---|---|
+| P1 | G1 | you pay Tyler 30 on Coast Road, Venmo, paid on Oct 4 | one row; every net 0; the row keeps the date |
+| P2 | G1 | you pay Tyler 40 | rejected: more than what is owed |
+| P3 | G1 | you pay Atish 10 | rejected: Atish isn't owed anything |
+| P4 | You owe Tyler 30 on Coast Road and 15 on Lake House | you pay 45 as Coast Road 30 + Lake House 15 | two rows; you're settled with Tyler on both trips |
+| P5 | P4, the same log repeated with the same `request_id` | — | no new rows |
+| P6 | Jo owes you 8 on Coast Road | you record 8 from Jo, cash | Jo is the payer; Jo and you settled |
+
+### Removing and leaving
+
+| # | Setup | Action | Expected |
+|---|---|---|---|
+| R1 | G1 | remove Tyler (+30) | refused: only members with a $0 balance can be removed |
+| R2 | G1 | remove Atish ($0) | removed; every other net unchanged |
+| R3 | G1 | you leave (−30) | refused; after you pay Tyler 30, leaving works |

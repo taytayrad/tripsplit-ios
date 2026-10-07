@@ -1,7 +1,5 @@
 # Permissions
 
-> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
-
 Who can do what, and the Supabase row-level security (RLS) that enforces it. The product rule is simple: **any active member can do anything on a trip** (PRD › Decisions › Permissions). Money writes go through RPC functions (see [`data-model.md`](data-model.md)), and each function checks membership itself.
 
 **Active member** = a `trip_members` row for the caller with `removed_at is null`, on a trip that isn't deleted (unless the action is undelete).
@@ -18,7 +16,8 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |
 | Add, edit, or delete an expense | active member | |
-| Log a payment | either of the two people | the caller must be the payer or payee; the other person may be a removed member with *keep* |
+| Log a payment | either of the two people | the caller must be the payer or payee, and both must be on the trip (the other may be a member removed with *keep* before the net model) |
+| See every member's net and the suggested payments | active member | `my_trip_settlements()`; a removed member sees only suggestions involving them |
 | Delete a payment | payer or payee | soft delete |
 | Edit profile, pay methods, notifications | self | |
 

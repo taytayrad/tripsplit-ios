@@ -8,7 +8,8 @@ select tests.trip('cr', array['you', 'alex']);
 create temp table t_e on commit drop as select tests.equal('cr', 'you', 8420, array['you', 'alex']) as id;
 grant select on t_e to authenticated;
 select tests.authenticate_as(tests.id('alex'));
-select public.log_payment(tests.id('you'), 1000, 'pay', 'cash', gen_random_uuid());
+select public.log_payment(tests.id('you'), 'pay', 'cash', gen_random_uuid(), current_date,
+                          jsonb_build_array(jsonb_build_object('trip_id', tests.id('cr'), 'cents', 1000)));
 
 -- An outsider sees nothing of the trip.
 select tests.authenticate_as(tests.id('olive'));
