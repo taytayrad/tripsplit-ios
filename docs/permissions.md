@@ -1,7 +1,5 @@
 # Permissions
 
-> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
-
 Who can do what, and the Supabase row-level security (RLS) that enforces it. The product rule is simple: **any active member can do anything on a trip** (PRD › Decisions › Permissions). Money writes go through RPC functions (see [`data-model.md`](data-model.md)), and each function checks membership itself.
 
 **Active member** = a `trip_members` row for the caller with `removed_at is null`, on a trip that isn't deleted (unless the action is undelete).
@@ -14,11 +12,13 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Edit trip name, dates, stamp | active member | |
 | Add a member, share the invite link | active member | 20-member cap |
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
-| Remove a member (keep or wipe) | active member | the remover chooses keep or wipe |
+| Remove a member | active member | only when that member's net on the trip is $0 |
+| Leave a trip | active member, yourself | only when your net on the trip is $0 |
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |
 | Add, edit, or delete an expense | active member | |
-| Log a payment | either of the two people | the caller must be the payer or payee; the other person may be a removed member with *keep* |
+| Log a payment | either of the two people | the caller must be the payer or payee, and both must be on the trip (the other may be a member removed with *keep* before the net model) |
+| See every member's net and the suggested payments | active member | `my_trip_settlements()`; a removed member sees only suggestions involving them |
 | Delete a payment | payer or payee | soft delete |
 | Edit profile, pay methods, notifications | self | |
 
@@ -36,6 +36,6 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 
 ## Gotchas
 
-- **Removed members lose access** to the trip and its Activity. With *keep*, their balance still shows on their own Your Balance and person screens, built from their payment and pair rows only.
+- **Removed members lose access** to the trip and its Activity. They're always settled when they go (TRIP-14), so they never need a way back in to pay. Members removed with *keep* before that still see the suggestions that involve them.
 - **Deleted trips** disappear from every list and total, but the `trip_deleted` Activity row stays visible to members at deletion time, so they can undelete.
 - Pay-app handles are only ever shown to people you share a trip with.

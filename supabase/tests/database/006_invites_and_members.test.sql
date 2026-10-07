@@ -37,9 +37,9 @@ select is((select count(*) from public.invite_preview((select token from tests.n
           'invite_preview: deleted trips return nothing');
 reset role;
 
--- Removed members keep their name on the trip, and can still see who they settle up with.
+-- Removed members keep their name on the trip, and still see the people they shared it with.
 select tests.authenticate_as(tests.id('you'));
-select public.remove_member(tests.id('cr'), tests.id('alex'), 'keep');
+select public.remove_member(tests.id('cr'), tests.id('alex'));
 select is((select display_name from public.profiles where id = tests.id('alex')), 'alex',
           'profiles: a removed member''s name stays visible to the trip');
 select tests.authenticate_as(tests.id('alex'));

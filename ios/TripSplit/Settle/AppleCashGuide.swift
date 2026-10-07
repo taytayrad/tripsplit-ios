@@ -7,6 +7,8 @@ import SwiftUI
 struct AppleCashGuide: View {
     let otherName: String
     let cents: Int
+    /// Why the amount can't be sent now (it's more than is owed, or nothing is): shown instead of the steps.
+    var problem: String? = nil
     /// Called as Messages opens; coming back to TripSplit then asks "Did you pay?".
     let onOpenMessages: () -> Void
 
@@ -17,10 +19,11 @@ struct AppleCashGuide: View {
 
     var body: some View {
         ScrollView {
-            if cents > 0 { guide } else {
-                // The balance changed while the guide was open (the other person logged a payment).
-                Text("You don’t owe \(otherName) anything now.").font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity).padding(.top, Spacing.xxxl)
+            if cents > 0, problem == nil { guide } else {
+                // The balance changed while the guide was open (someone logged a payment or edited an expense).
+                Text(problem ?? "You don’t owe \(otherName) anything now.").font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity).padding(.top, Spacing.xxxl).padding(.horizontal, Spacing.lg)
             }
         }
         .presentationDetents([.large])
@@ -53,7 +56,7 @@ struct AppleCashGuide: View {
     }
 
     /// Step 3 says the amount is copied, so the clipboard follows the live balance (and only a real amount).
-    private func copyAmount() { if cents > 0 { UIPasteboard.general.string = Money.plain(cents) } }
+    private func copyAmount() { if cents > 0, problem == nil { UIPasteboard.general.string = Money.plain(cents) } }
 
     private func step(_ n: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
@@ -66,7 +69,7 @@ struct AppleCashGuide: View {
     /// A new message in the Messages app with the text filled in and no recipient. "Did you pay?" is armed only once
     /// Messages has actually opened; if it doesn't, the guide stays up.
     private func open() {
-        guard cents > 0, let link = URL(string: "sms:&body=" + (message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")) else { return }
+        guard cents > 0, problem == nil, let link = URL(string: "sms:&body=" + (message.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")) else { return }
         copyAmount()
         openURL(link) { opened in
             guard opened else { return }

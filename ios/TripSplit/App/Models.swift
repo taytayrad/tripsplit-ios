@@ -51,12 +51,22 @@ struct Trip: Codable, Identifiable, Hashable {
     var end: Date? { endDate.flatMap(DayFormat.parse) }
 }
 
-/// Your balance with one person on one trip (`my_pair_balances`); positive means they owe you. $0 pairs are omitted.
-struct PairBalance: Codable, Hashable, Sendable {
+/// One suggested payment on a trip (`my_trip_settlements`, docs/money-rules.md › Suggested payments). Every member's
+/// net follows from these: what they're paid minus what they pay.
+struct Settlement: Codable, Hashable, Sendable {
     let tripId: UUID
-    let otherUserId: UUID
+    let seq: Int
+    let payerId: UUID
+    let payeeId: UUID
     let cents: Int
-    enum CodingKeys: String, CodingKey { case tripId = "trip_id", otherUserId = "other_user_id", cents }
+    enum CodingKeys: String, CodingKey { case tripId = "trip_id", seq, payerId = "payer_id", payeeId = "payee_id", cents }
+}
+
+/// Your net on one trip (`my_trip_nets`); positive means you're owed. $0 trips are omitted.
+struct TripNet: Codable, Hashable, Sendable {
+    let tripId: UUID
+    let cents: Int
+    enum CodingKeys: String, CodingKey { case tripId = "trip_id", cents }
 }
 
 enum PayMethod: String, Codable, Sendable {
@@ -74,7 +84,7 @@ enum PayMethod: String, Codable, Sendable {
     }
 }
 
-/// A row `log_payment` returns: one per trip the payment touched.
+/// A row `log_payment` returns: one per trip in the payment.
 struct LoggedPayment: Decodable, Sendable {
     let paymentId: UUID
     let tripId: UUID
@@ -89,10 +99,14 @@ struct Payment: Codable, Identifiable, Hashable, Sendable {
     let payeeId: UUID
     let amountCents: Int
     let method: PayMethod
+    /// The day it happened ("yyyy-MM-dd"), set on the Payment page.
+    let paidOn: String
     let createdAt: Date
     enum CodingKeys: String, CodingKey {
-        case id, method, tripId = "trip_id", payerId = "payer_id", payeeId = "payee_id", amountCents = "amount_cents", createdAt = "created_at"
+        case id, method, tripId = "trip_id", payerId = "payer_id", payeeId = "payee_id", amountCents = "amount_cents"
+        case paidOn = "paid_on", createdAt = "created_at"
     }
+    var date: Date { DayFormat.parse(paidOn) ?? createdAt }
 }
 
 struct InvitePreview: Codable, Hashable {
@@ -140,8 +154,6 @@ enum Money {
         let value = Decimal(abs(cents)) / 100
         return value.formatted(.currency(code: "USD").precision(.fractionLength(cents % 100 == 0 ? 0 : 2)))
     }
-    /// Signed, for the balance chip only: "-$128", "$64", "$0".
-    static func signed(_ cents: Int) -> String { (cents < 0 ? "-" : "") + string(cents) }
 }
 
 struct ExpenseShare: Codable, Hashable {

@@ -39,3 +39,39 @@ enum InviteLink {
         return token
     }
 }
+
+/// A trip's expenses and payments as one list, newest first (PRD › Net model › Trip detail).
+enum TripLedger {
+    enum Item: Identifiable, Equatable {
+        case expense(Expense), payment(Payment)
+
+        var id: UUID {
+            switch self { case .expense(let e): e.id; case .payment(let p): p.id }
+        }
+        /// "yyyy-MM-dd": the day it happened.
+        fileprivate var day: String {
+            switch self { case .expense(let e): e.spentOn; case .payment(let p): p.paidOn }
+        }
+        fileprivate var createdAt: Date {
+            switch self { case .expense(let e): e.createdAt; case .payment(let p): p.createdAt }
+        }
+    }
+
+    /// Newest day first; on the same day, the most recently added first.
+    static func items(expenses: [Expense], payments: [Payment]) -> [Item] {
+        (expenses.map(Item.expense) + payments.map(Item.payment)).sorted { ($0.day, $0.createdAt) > ($1.day, $1.createdAt) }
+    }
+}
+
+/// A member's amount on Edit trip, in words: "You owe" / "You lent" for you, "Owes" / "Gets back" for others,
+/// "Settled" at $0. `cents` is their net (positive = owed).
+struct MemberAmount: Equatable {
+    let cents: Int
+    let isYou: Bool
+
+    var label: String {
+        if cents == 0 { return "Settled" }
+        if isYou { return cents < 0 ? "You owe" : "You lent" }
+        return cents < 0 ? "Owes" : "Gets back"
+    }
+}

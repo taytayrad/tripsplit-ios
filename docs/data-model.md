@@ -1,7 +1,5 @@
 # Data model
 
-> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
-
 The Supabase Postgres schema, implemented through Phase 3 (`push` and `device_tokens` writes arrive in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
@@ -47,7 +45,7 @@ erDiagram
         timestamptz joined_at
         timestamptz removed_at "nullable"
         uuid removed_by "nullable"
-        text removal "keep | wipe, nullable"
+        text removal "settled (keep | wipe before TRIP-14), nullable"
     }
     expenses {
         uuid id PK
@@ -76,7 +74,8 @@ erDiagram
         int amount_cents "> 0"
         text method "venmo | zelle | apple_cash | cash | recorded"
         uuid logged_by FK
-        uuid request_id "idempotency, groups an allocation"
+        uuid request_id "idempotency, groups one log across trips"
+        date paid_on "the day it happened, editable on the Payment page"
         timestamptz created_at
         timestamptz deleted_at "nullable"
         uuid deleted_by "nullable"
@@ -108,7 +107,9 @@ erDiagram
 | `sum(share_cents) = amount_cents` per expense | deferred constraint trigger |
 | The payer is a member of the trip; a share's user was a member when the expense was saved | `save_expense` function |
 | `payer_id ≠ payee_id`, and `logged_by ∈ {payer_id, payee_id}` | check constraint |
-| One allocation per `request_id` | unique `(request_id, trip_id)` |
+| One payment per trip per `request_id` | unique `(request_id, trip_id)` |
+| A payment is no more than the payer owes and the payee is owed on that trip | `log_payment` function |
+| Someone who left a trip at $0 stays at $0: no expense edit or delete, or payment delete, may move their net | deferred constraint triggers on `expenses`, `expense_shares` and `payments` (`private.check_departed_settled`) |
 | Expenses, shares, and payments change only through the functions below | RLS: no direct client insert or update on money tables |
 | Activity events are append-only and written only by functions or triggers | RLS |
 
@@ -124,19 +125,19 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `invite_preview(invite_token)` | trip name, inviter, and stamp for the sign-in screen; the one function anon may call |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
 | `delete_expense(id)` | hard-deletes expense and shares, logs `expense_deleted` with deltas |
-| `log_payment(other_user, amount_cents, direction, method, request_id)` | `direction` is `pay` (you pay them) or `record` (they paid you). Rejects amounts above what's owed, allocates oldest trip first, inserts one payment per trip, logs `payment_logged` per row, and returns the rows. Retrying a `request_id` returns the existing rows (only to the person who logged it); if balances changed mid-allocation it fails and nothing is written |
+| `log_payment(other_user, direction, method, request_id, paid_on, parts)` | `direction` is `pay` (you pay them) or `record` (they paid you). `parts` is `[{trip_id, cents}]`: one payment per trip ("2 Trips" sends two). Each part must be no more than the payer owes and the payee is owed on that trip, and both people must be on it. Locks the trips, inserts the rows, logs `payment_logged` per row, and returns them. Retrying a `request_id` returns the existing rows (only to the person who logged it) |
 | `delete_payment(id)` | soft-deletes, logs `payment_deleted`; refused on a deleted trip so undelete restores it exactly |
-| `remove_member(trip, user, keep \| wipe)` | marks removal; for wipe, rewrites shares and stores the expense as an exact split (see money-rules › Wipe) |
+| `remove_member(trip, user)` | removes someone else, only when their net on the trip is $0 ("only members with a $0 balance can be removed"); logs `member_removed` with empty deltas |
+| `leave_trip(trip)` | removes you, only when your net is $0 ("settle up before leaving"); logs `member_removed` with you as the actor |
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
 
 ## Reads (calculated)
 
 | Need | Source |
 |---|---|
-| Pairwise balances | `my_pair_balances()` → `(trip_id, other_user_id, cents)`, positive = they owe you. Built on the private view `private.pair_balances` (non-deleted trips, expenses, shares, non-deleted payments), which clients can't query directly |
-| Trip net | `my_trip_nets()` → `(trip_id, cents)` |
-| Combined balance (Your Balance rows) | `my_combined_balances()` → `(other_user_id, cents)`, $0 people omitted |
-| Header total (balance chip) | `my_header_total()` → `cents`, the sum of the combined rows |
+| Member nets | private view `private.member_nets` → `(trip_id, user_id, cents)` per live trip; `private.member_net(trip, user)` for one |
+| Suggested payments | `my_trip_settlements()` → `(trip_id, seq, payer_id, payee_id, cents)`: every suggestion on trips you're an active member of (plus any involving you on a trip you were removed from), in order. Built by `private.suggested_payments(trip)` (money-rules › Suggested payments) |
+| Your net per trip | `my_trip_nets()` → `(trip_id, cents)`, from `member_nets` |
 | Activity dollar line | `activity_events.deltas[you]`, snapshotted when the event was written so history doesn't shift after later edits |
 
 ## Notes

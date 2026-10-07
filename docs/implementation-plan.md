@@ -21,7 +21,7 @@ prd.md          product requirements + decision log
 | 1. Money core | Schema, RPC functions, balances, and RLS, all proven by golden-case tests | 0 |
 | 2. Accounts and trips | Sign in, onboarding, trips, invite links | 1 |
 | 3. Expenses | Expense form, four splits, edit and delete, live updates | 2 |
-| 4. Balances and settling | Balance chip, Your Balance, person screen, logging payments | 3 |
+| 4. Balances and settling | Balance chip, Your Balance, person screen, logging payments (superseded by 7) | 3 |
 | 5. Activity and notifications | Feed, undelete, push, Profile | 4 |
 | 6. Hardening and beta | Failure states, accessibility, TestFlight | 5 |
 | 7. Net model | One net per member per trip, Settle up and Payment pages, settled-before-leaving | 4 |
@@ -109,6 +109,8 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 4: Balances and settling
 
+> **Superseded by phase 7.** The net model replaced the balance chip, Your Balance, the person screen and the pay bar. Kept as history.
+
 **Build**
 - Balance chip on every main screen: signed and colored, tapping opens Your Balance.
 - Your Balance sheet: balance block with "Across N trips", rows grouped under "You owe" and "Owes you", unsigned.
@@ -139,8 +141,8 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 ## Phase 6: Hardening and beta
 
 **Build**
-- Failure and empty states: no connection, failed save with Retry, empty Activity, Your Balance with everything settled, notifications denied.
-- Accessibility: Dynamic Type up to accessibility sizes, VoiceOver labels on every amount ("You owe Alex 90 dollars"), 44 pt touch targets (the balance chip especially), contrast already AA by token.
+- Failure and empty states: no connection, failed save with Retry, empty Activity, Settle up with everyone settled, notifications denied.
+- Accessibility: Dynamic Type up to accessibility sizes, VoiceOver labels on every amount ("You owe Alex 90 dollars"), 44 pt touch targets (the Pay button and Member Tickets especially), contrast already AA by token.
 - Dark mode pass on every screen.
 - App Store Connect, TestFlight, privacy manifest, and the App Store privacy "nutrition label" (no tracking, no phone).
 - Run the prototype's test tasks on the real app with 5 friends.
@@ -152,7 +154,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 7: Net model
 
-Approved 2026-10-06 (`prd.md` › Prototype decisions › Net model; Figma › Settle up & Payment). Replaces most of phase 4's screens. Order: TRIP-10 first; then TRIP-11 and TRIP-14 in parallel; then TRIP-12; TRIP-13 last.
+**Built** (TRIP-10 to TRIP-14). Approved 2026-10-06 (`prd.md` › Prototype decisions › Net model; Figma › Settle up & Payment). Replaces most of phase 4's screens. Order: TRIP-10 first; then TRIP-11 and TRIP-14 in parallel; then TRIP-12; TRIP-13 last.
 
 **Build**
 - TRIP-10: net per member per trip, suggested payments, payments per trip (money-rules golden cases first).

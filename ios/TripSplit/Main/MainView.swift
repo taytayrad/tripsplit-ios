@@ -12,28 +12,23 @@ struct MainView: View {
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
         .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
-        .sheet(isPresented: $app.showingBalance) { YourBalanceView() }
     }
 }
 
-/// The header on every main screen: balance chip (left) and Add (right). Add logs an expense; with no trips
-/// yet it starts a trip. Another trip starts from the Add trip button under the trip cards.
+/// The header on every main screen: Settle up (left) and Add (right). Settle up opens All trips, so anyone you
+/// have a balance with stays reachable, including on a trip you were removed from before TRIP-14. Add logs an
+/// expense; with no trips yet it starts a trip. There's no running total: money lives on each trip (PRD › Net model).
 struct MainHeader: ToolbarContent {
     let onAddTrip: () -> Void
-    @Environment(AppModel.self) private var app
+    let onSettleUp: () -> Void
 
     var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) { Button("Settle up", action: onSettleUp) }
         if #available(iOS 26, *) {
-            ToolbarItem(placement: .topBarLeading) { chip }.sharedBackgroundVisibility(.hidden)
             ToolbarItem(placement: .topBarTrailing) { add }.sharedBackgroundVisibility(.hidden)
         } else {
-            ToolbarItem(placement: .topBarLeading) { chip }
             ToolbarItem(placement: .topBarTrailing) { add }
         }
-    }
-
-    private var chip: some View {
-        Button { app.showingBalance = true } label: { BalanceChip(cents: app.headerTotal) }.buttonStyle(.plain)
     }
 
     private var add: some View {

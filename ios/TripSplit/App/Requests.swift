@@ -52,12 +52,6 @@ struct PayMethodsUpdate: Encodable {
     }
 }
 
-struct RemoveMemberArgs: Encodable, Sendable {
-    let p_trip: UUID
-    let p_user: UUID
-    let p_mode: String
-}
-
 // supabase-swift's PostgrestResponse isn't Sendable, so AppModel (main actor) can't receive it.
 // These run the query off the main actor and hand back only the decoded, Sendable value.
 extension PostgrestBuilder {
@@ -98,10 +92,17 @@ struct SaveExpenseArgs: Encodable, Sendable {
     }
 }
 
+/// One trip's part of a payment.
+struct PaymentPart: Encodable, Sendable, Equatable {
+    let trip_id: UUID
+    let cents: Int
+}
+
 struct LogPaymentArgs: Encodable, Sendable {
     let p_other: UUID
-    let p_amount_cents: Int
     let p_direction: String
     let p_method: String
     let p_request_id: UUID
+    let p_paid_on: String
+    let p_parts: [PaymentPart]
 }
