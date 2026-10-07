@@ -1,5 +1,7 @@
 # Events
 
+> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
+
 Every `activity_events.kind`: how it reads in Activity, its dollar line, and who gets a push. The push edge function implements this table. Never notify the actor about their own action.
 
 **Delta** = the event's change to a person's trip net, snapshotted at write time (`activity_events.deltas`).
