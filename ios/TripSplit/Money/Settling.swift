@@ -1,173 +1,104 @@
 import Foundation
 
-// Phase 4's pure rules (docs/money-rules.md › Balances, Payments). Balances come from the server's pair rows;
-// these only group, word, and preview them. The server decides every payment.
+// Settling up in the net model (docs/money-rules.md › Suggested payments, Payments). The server suggests every
+// payment; these only group, word, and split them. The server checks every payment.
 
-/// Your Balance: one row per person, combined across trips, under "You owe" and "Owes you". The header chip is
-/// `total`, the sum of the same rows, so the two can't disagree.
-struct BalanceSummary: Equatable {
-    struct Row: Equatable, Identifiable { let id: UUID; let name: String; let cents: Int }
+/// Which way the money goes, from your side: you pay them, or you record what they paid you.
+enum SettleDirection: Hashable { case pay, record }
 
-    let youOwe: [Row]
-    let owesYou: [Row]
-    /// Everyone else in `people`, at $0, so their screen (and a payment that settled them) stays reachable.
-    let settled: [Row]
-    let total: Int
-    /// Trips behind the listed rows ("Across 3 trips"). Deleted trips have no pair rows.
-    let tripCount: Int
+/// One person on the Settle up page: what you owe them (or they owe you), per trip.
+struct SettleTicket: Identifiable, Hashable {
+    struct Part: Hashable { let tripId: UUID; let cents: Int }
 
-    init(pairs: [PairBalance], name: (UUID) -> String, people: [UUID] = []) {
-        let combined = Dictionary(grouping: pairs, by: \.otherUserId).mapValues { $0.reduce(0) { $0 + $1.cents } }.filter { $0.value != 0 }
-        let rows = combined.map { Row(id: $0.key, name: name($0.key), cents: $0.value) }
-        youOwe = rows.filter { $0.cents < 0 }.sorted { ($0.cents, $0.name) < ($1.cents, $1.name) }
-        owesYou = rows.filter { $0.cents > 0 }.sorted { ($1.cents, $0.name) < ($0.cents, $1.name) }
-        settled = Set(people).subtracting(combined.keys).map { Row(id: $0, name: name($0), cents: 0) }.sorted { $0.name < $1.name }
-        total = rows.reduce(0) { $0 + $1.cents }
-        tripCount = Set(pairs.filter { $0.cents != 0 && combined[$0.otherUserId] != nil }.map(\.tripId)).count
-    }
+    let personId: UUID
+    let direction: SettleDirection
+    /// Each trip's suggested amount, oldest trip first.
+    let parts: [Part]
 
-    /// Your net on each trip: the sum of your pairs on it (money-rules › Pairwise balance).
-    static func tripNets(_ pairs: [PairBalance]) -> [UUID: Int] {
-        Dictionary(grouping: pairs, by: \.tripId).mapValues { $0.reduce(0) { $0 + $1.cents } }
-    }
+    var id: String { "\(personId)-\(direction)" }
+    var cents: Int { parts.reduce(0) { $0 + $1.cents } }
+    var tripIds: [UUID] { parts.map(\.tripId) }
 }
 
-/// A person's screen: a group per shared trip (newest first), each with its net and the lines between the two
-/// of you, drawn like the trip's expense rows (PRD › Prototype decisions › Person screen lines).
-struct PersonLedger {
-    struct Line: Identifiable, Equatable {
-        let id: UUID
-        let title: String
-        /// "Alex paid $120 · Oct 3" for an expense; "Venmo · Today", or the day alone when recorded, for a payment.
-        let caption: String
-        /// "You owe" or "You lent" on an expense; none on a payment.
-        let label: String?
-        /// What the line shows, unsigned: only what's between the two of you.
-        let cents: Int
-        let isPayment: Bool
-        /// The change to your net with this person.
-        let effect: Int
-        let symbol: String
-        /// The expense a tap edits; nil for a payment.
-        let expense: Expense?
-    }
-
-    /// SF Symbol on a payment line (Figma Payment/Transfer).
-    static let paymentSymbol = "arrow.left.arrow.right"
-
-    struct Group: Identifiable, Equatable {
-        let id: UUID
-        let name: String
-        let net: Int
-        let lines: [Line]
-    }
-
-    let total: Int
-    let groups: [Group]
-    /// Trips you still have a balance on with this person.
-    let openTripCount: Int
-
-    /// A trip whose pair rows or payments reach you but whose row you can't read: you were removed with keep.
-    static let unreadableTripName = "A trip you were removed from"
-
-    init(me: UUID, other: UUID, otherName: String, tripsNewestFirst: [Trip], expenses: [Expense], payments: [Payment], pairs: [PairBalance],
-         now: Date = .now) {
-        let mine = pairs.filter { $0.otherUserId == other }
-        let nets = BalanceSummary.tripNets(mine)
-        total = mine.reduce(0) { $0 + $1.cents }
-        openTripCount = Set(mine.filter { $0.cents != 0 }.map(\.tripId)).count
-        let between = payments.filter { Set([$0.payerId, $0.payeeId]) == Set([me, other]) }.sorted { $0.createdAt < $1.createdAt }
-        func group(_ tripId: UUID, _ name: String) -> Group? {
-            let charges: [Line] = expenses.filter { $0.tripId == tripId }.sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }.compactMap { e in
-                let cents = e.payerId == me ? e.share(of: other) ?? 0 : e.payerId == other ? -(e.share(of: me) ?? 0) : 0
-                guard cents != 0 else { return nil }
-                let caption = ExpenseLine.caption(payer: e.payerId == me ? "You" : otherName, amountCents: e.amountCents, date: e.date, now: now)
-                return Line(id: e.id, title: e.description, caption: caption, label: cents < 0 ? "You owe" : "You lent", cents: abs(cents),
-                            isPayment: false, effect: cents, symbol: e.icon.symbol, expense: e)
-            }
-            let paid: [Line] = between.filter { $0.tripId == tripId }.map { p in
-                let title = p.payerId == me ? "You paid" : "\(otherName) paid you"
-                let caption = [p.method.title, ExpenseLine.day(p.createdAt, now: now)].compactMap { $0 }.joined(separator: " · ")
-                return Line(id: p.id, title: title, caption: caption, label: nil, cents: p.amountCents, isPayment: true,
-                            effect: p.payerId == me ? p.amountCents : -p.amountCents, symbol: Self.paymentSymbol, expense: nil)
-            }
-            let net = nets[tripId] ?? 0
-            return charges.isEmpty && paid.isEmpty && net == 0 ? nil : Group(id: tripId, name: name, net: net, lines: charges + paid)
+enum SettleUp {
+    /// The tickets for you: one per person and direction, from a trip's suggestions or (with no trip) all of them.
+    /// You-owe tickets first, then you-lent; the biggest first within each. Parts follow `tripsOldestFirst`.
+    static func tickets(_ settlements: [Settlement], me: UUID, trip: UUID?, tripsOldestFirst: [UUID]) -> [SettleTicket] {
+        let order = Dictionary(tripsOldestFirst.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        let mine = settlements.filter { ($0.payerId == me || $0.payeeId == me) && (trip == nil || $0.tripId == trip) }
+        let groups = Dictionary(grouping: mine) { s in
+            s.payerId == me ? TicketKey(person: s.payeeId, direction: .pay) : TicketKey(person: s.payerId, direction: .record)
         }
-        let known = Set(tripsNewestFirst.map(\.id))
-        var unreadable: [UUID] = []
-        // From pair rows only: payments on a deleted trip stay readable, but a deleted trip has no pair rows.
-        // ponytail: a removed member's settled trip drops out too, until its name can be read (issue #12).
-        for id in mine.map(\.tripId) where !known.contains(id) && !unreadable.contains(id) { unreadable.append(id) }
-        groups = tripsNewestFirst.filter { trip in trip.tripMembers.contains { $0.userId == other } }.compactMap { group($0.id, $0.name) }
-            + unreadable.compactMap { group($0, Self.unreadableTripName) }
+        return groups.map { key, rows in
+            let byTrip = Dictionary(grouping: rows, by: \.tripId).mapValues { $0.reduce(0) { $0 + $1.cents } }
+            let parts = byTrip.map { SettleTicket.Part(tripId: $0.key, cents: $0.value) }
+                .sorted { (order[$0.tripId] ?? .max, $0.tripId.uuidString) < (order[$1.tripId] ?? .max, $1.tripId.uuidString) }
+            return SettleTicket(personId: key.person, direction: key.direction, parts: parts)
+        }
+        .sorted { a, b in
+            if a.direction != b.direction { return a.direction == .pay }
+            return (b.cents, a.personId.uuidString) < (a.cents, b.personId.uuidString)
+        }
     }
 
-    /// Settled trips hide behind "Show settled trips", except ones that just reached $0 here (`keep`).
-    func visible(showSettled: Bool, keep: Set<UUID>) -> [Group] {
-        groups.filter { $0.net != 0 || showSettled || keep.contains($0.id) }
+    private struct TicketKey: Hashable { let person: UUID; let direction: SettleDirection }
+
+    /// Every member's net on a trip, from its suggestions: what they're paid minus what they pay. Members not
+    /// listed are at $0.
+    static func memberNets(trip: UUID, _ settlements: [Settlement]) -> [UUID: Int] {
+        var nets: [UUID: Int] = [:]
+        for s in settlements where s.tripId == trip {
+            nets[s.payerId, default: 0] -= s.cents
+            nets[s.payeeId, default: 0] += s.cents
+        }
+        return nets
     }
 
-    func hiddenCount(keep: Set<UUID>) -> Int { groups.filter { $0.net == 0 && !keep.contains($0.id) }.count }
-}
+    /// Everyone on the trip is at $0.
+    static func isSettled(trip: UUID, _ settlements: [Settlement]) -> Bool { !settlements.contains { $0.tripId == trip } }
 
-/// The bottom bar on a person's screen (PRD › Settling).
-enum PayBar {
-    enum Action: Equatable, Hashable { case venmo(username: String), zelle, appleCash, cash, record }
-
-    /// You owe them: the methods you both have (absent, never disabled), then Cash. They owe you: Record a Payment.
-    /// Settled: nothing.
-    static func actions(me: Profile, them: Profile, total: Int) -> [Action] {
-        if total > 0 { return [.record] }
-        guard total < 0 else { return [] }
-        var actions: [Action] = []
-        if me.venmoUsername?.nilIfEmpty != nil, let theirs = them.venmoUsername?.nilIfEmpty { actions.append(.venmo(username: theirs)) }
-        if me.hasZelle && them.hasZelle { actions.append(.zelle) }
-        if me.hasAppleCash && them.hasAppleCash { actions.append(.appleCash) }
-        return actions + [.cash]
-    }
-}
-
-/// Where a logged amount goes: the trips you owe on (or are owed on), oldest first, each filled before the next.
-/// A preview for the log sheet's note; `log_payment` does the real allocation the same way.
-enum Allocation {
-    /// `startDay` is the trip's `start_date` ("yyyy-MM-dd"), so it sorts the way `log_payment` does.
-    struct OpenTrip: Equatable { let id: UUID; let name: String; let owed: Int; let startDay: String?; let created: Date }
-    struct Part: Equatable { let tripId: UUID; let name: String; let cents: Int; let paysOff: Bool }
-
-    /// Nil when the amount is $0 or more than everything owed (no overpaying).
-    static func plan(_ cents: Int, across trips: [OpenTrip]) -> [Part]? {
-        guard cents > 0, cents <= trips.reduce(0, { $0 + $1.owed }) else { return nil }
+    /// How `cents` splits across a ticket's trips: oldest first, each filled before the next. Nil when it's $0 or
+    /// more than the ticket's total (no overpaying).
+    static func split(_ cents: Int, across parts: [SettleTicket.Part]) -> [PaymentPart]? {
+        guard cents > 0, cents <= parts.reduce(0, { $0 + $1.cents }) else { return nil }
         var left = cents
-        // log_payment: order by coalesce(start_date, created_at::date), created_at (the date in UTC).
-        func key(_ t: OpenTrip) -> (String, Date) { (t.startDay ?? DayFormat.utcString(t.created), t.created) }
-        return trips.sorted { key($0) < key($1) }.compactMap { trip in
+        return parts.compactMap { part in
             guard left > 0 else { return nil }
-            let take = min(left, trip.owed)
+            let take = min(left, part.cents)
             left -= take
-            return Part(tripId: trip.id, name: trip.name, cents: take, paysOff: take == trip.owed)
+            return PaymentPart(trip_id: part.tripId, cents: take)
         }
     }
 
-    /// "Pays off Lake House ($30) first, then $20 toward Coast Road." Nil when only one trip is touched.
-    static func note(_ parts: [Part]) -> String? {
-        guard parts.count > 1 else { return nil }
-        let paidOff = parts.filter(\.paysOff).map { "\($0.name) (\(Money.string($0.cents)))" }
-        let list = paidOff.count > 2 ? paidOff.dropLast().joined(separator: ", ") + ", and " + paidOff.last! : paidOff.joined(separator: " and ")
-        guard let partial = parts.last, !partial.paysOff else { return "Pays off \(list)." }
-        return "Pays off \(list) first, then \(Money.string(partial.cents)) toward \(partial.name)."
+    /// Trips oldest first, the order a payment fills them: by start date, then created date.
+    static func oldestFirst(_ trips: [Trip]) -> [UUID] {
+        trips.sorted { ($0.startDate ?? DayFormat.utcString($0.createdAt), $0.createdAt) < ($1.startDate ?? DayFormat.utcString($1.createdAt), $1.createdAt) }
+            .map(\.id)
     }
 }
 
-/// The Log payment sheet's rules.
-enum LogPayment {
-    enum Direction { case pay, record }
+/// How a payment can be made on the Payment page.
+enum PayOptions {
+    /// Paying: the apps you both use (absent, never disabled), then Cash. Recording what they paid you: any method.
+    static func methods(direction: SettleDirection, me: Profile?, them: Profile?) -> [PayMethod] {
+        guard direction == .pay else { return [.venmo, .zelle, .appleCash, .cash] }
+        var methods: [PayMethod] = []
+        if me?.venmoUsername?.nilIfEmpty != nil, them?.venmoUsername?.nilIfEmpty != nil { methods.append(.venmo) }
+        if me?.hasZelle == true, them?.hasZelle == true { methods.append(.zelle) }
+        if me?.hasAppleCash == true, them?.hasAppleCash == true { methods.append(.appleCash) }
+        return methods + [.cash]
+    }
 
-    /// The most that can be logged in this direction. Zero when the balance has flipped since the sheet opened.
-    static func max(total: Int, direction: Direction) -> Int { Swift.max(0, direction == .pay ? -total : total) }
+    /// The method a payment starts on: the first available (cash when recording).
+    static func initial(direction: SettleDirection, me: Profile?, them: Profile?) -> PayMethod {
+        direction == .record ? .cash : methods(direction: direction, me: me, them: them).first ?? .cash
+    }
+}
 
-    /// Why Log is unavailable, or nil when the amount can be logged.
-    static func problem(cents: Int?, max: Int, direction: Direction, otherName: String) -> String? {
+/// The amount check on the Payment page and the Log Payment Sheet.
+enum PaymentLimit {
+    /// Why the amount can't be logged, or nil when it can.
+    static func problem(cents: Int?, max: Int, direction: SettleDirection, otherName: String) -> String? {
         guard max > 0 else { return direction == .pay ? "You don’t owe \(otherName) anything now." : "\(otherName) doesn’t owe you anything now." }
         guard let cents, cents > 0 else { return "Enter an amount." }
         guard cents > max else { return nil }

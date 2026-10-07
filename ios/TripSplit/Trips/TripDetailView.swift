@@ -1,18 +1,21 @@
 import SwiftUI
 
+/// Trip detail (Figma Flow · Net model › Trip): your net with Pay beside it, one list of expenses and payments
+/// (newest first), and Add expense pinned at the bottom. When everyone is settled, the trip's stamp says so.
 struct TripDetailView: View {
     let tripId: UUID
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
-    /// The person whose screen is pushed to settle up.
-    @State private var paying: UUID?
-    /// Who you owe on this trip, when it's more than one person: the tap asks which.
-    @State private var choosing: [PairBalance] = []
+    @State private var settling = false
+    @State private var deletingPayment: Payment?
 
     var body: some View {
         if let trip = app.trip(tripId) {
-            let expenses = app.expenses(on: trip.id)
+            let ledger = TripLedger.items(expenses: app.expenses(on: trip.id), payments: app.payments(on: trip.id))
+            let net = app.nets[trip.id] ?? 0
+            let settled = SettleUp.isSettled(trip: trip.id, app.settlements) && !ledger.isEmpty
+            let hasSettlements = app.settlements.contains { $0.tripId == trip.id && ($0.payerId == app.userId || $0.payeeId == app.userId) }
             List {
                 Section {
                     VStack(alignment: .leading, spacing: Spacing.md) {
@@ -29,14 +32,19 @@ struct TripDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityHint("Double tap to edit the trip")
-                        let net = app.nets[trip.id] ?? 0
-                        if net < 0 {
-                            // What you owe here settles on that person's screen (their pay bar, their whole balance).
-                            Button { settleUp(trip) } label: { BalanceBlock(cents: net) }
-                                .buttonStyle(.plain)
-                                .accessibilityHint("Double tap to settle up")
+                        if settled {
+                            SettledHero(trip: trip, last: app.payments(on: trip.id).max { $0.createdAt < $1.createdAt })
                         } else {
-                            BalanceBlock(cents: net)
+                            HStack(alignment: .center, spacing: Spacing.md) {
+                                BalanceBlock(cents: net)
+                                if hasSettlements {
+                                    Button(net < 0 ? "Pay" : "Settle up") { settling = true }
+                                        .font(.headline).foregroundStyle(.white)
+                                        .padding(.horizontal, Spacing.xl).frame(minHeight: 44)
+                                        .background(Color.tsTintFill, in: .rect(cornerRadius: Radius.lg))
+                                        .buttonStyle(.plain)
+                                }
+                            }
                         }
                     }
                     .listRowBackground(Color.clear)
@@ -44,48 +52,100 @@ struct TripDetailView: View {
                 }
 
                 Section {
-                    if expenses.isEmpty {
-                        VStack(spacing: Spacing.md) {
-                            Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
-                            Button("Add expense") { app.addExpense(on: trip.id) }.buttonStyle(PrimaryButtonStyle())
-                        }
-                        .padding(.vertical, Spacing.sm)
-                        .frame(maxWidth: .infinity)
+                    if ledger.isEmpty {
+                        Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, Spacing.sm)
                     } else {
-                        ForEach(expenses) { expense in
-                            ExpenseRow(expense: expense, trip: trip)
-                                .contentShape(.rect)
-                                .onTapGesture { app.expenseSheet = .edit(expense) }  // delete from there; no swipe
+                        ForEach(ledger) { item in
+                            switch item {
+                            case .expense(let expense):
+                                ExpenseRow(expense: expense, trip: trip)
+                                    .contentShape(.rect)
+                                    .onTapGesture { app.expenseSheet = .edit(expense) }  // delete from there; no swipe
+                            case .payment(let payment):
+                                PaymentRow(payment: payment, trip: trip)
+                                    .swipeActions {
+                                        if [payment.payerId, payment.payeeId].contains(app.userId) {
+                                            Button("Delete", role: .destructive) { deletingPayment = payment }
+                                        }
+                                    }
+                            }
                         }
-                        Button("Add expense") { app.addExpense(on: trip.id) }.foregroundStyle(Color.tsTintFill)
                     }
-                } header: { Text("EXPENSES").font(.footnote) }
+                } header: {
+                    Text(app.payments(on: trip.id).isEmpty ? "EXPENSES" : "EXPENSES AND PAYMENTS").font(.footnote)
+                }
             }
             .listSectionSpacing(.compact)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .bottom) {
+                Button("Add expense") { app.addExpense(on: trip.id) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .padding(.horizontal, Spacing.lg).padding(.vertical, Spacing.sm)
+                    .background(Color(.systemGroupedBackground))
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
-            .sheet(isPresented: $editing) { TripFormView(mode: .edit(trip)) }
-            .navigationDestination(item: $paying) { PersonView(personId: $0) }
-            .confirmationDialog("Who are you paying?", isPresented: .init(get: { !choosing.isEmpty }, set: { if !$0 { choosing = [] } }),
-                                titleVisibility: .visible) {
-                ForEach(choosing, id: \.otherUserId) { pair in
-                    Button("\(app.name(of: pair.otherUserId)) · \(Money.string(pair.cents))") { paying = pair.otherUserId }
-                }
+            .sheet(isPresented: $editing) {
+                TripFormView(mode: .edit(trip), onSettleUp: { settling = true })
             }
+            .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: trip.id) }
+            .alert("Delete this payment?", isPresented: .init(get: { deletingPayment != nil }, set: { if !$0 { deletingPayment = nil } }),
+                   presenting: deletingPayment) { p in
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    Task {
+                        do { try await app.deletePayment(p.id) }
+                        catch { app.error = AppModel.describe("Couldn’t delete the payment. Check your connection and try again.", error) }
+                    }
+                }
+            } message: { _ in Text("It comes off the balances on \(trip.name). Either person on a payment can delete it.") }
         } else {
-            // The trip was deleted (here or on another phone).
+            // The trip was deleted, or you left it (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }
         }
     }
 }
 
-extension TripDetailView {
-    /// One person you owe here: straight to their screen. Several: pick, most owed first.
-    private func settleUp(_ trip: Trip) {
-        let owed = app.pairs.filter { $0.tripId == trip.id && $0.cents < 0 }.sorted { $0.cents < $1.cents }
-        if owed.count == 1 { paying = owed[0].otherUserId } else { choosing = owed }
+/// Everyone on the trip is at $0: the trip's stamp, "Everyone's settled", and the last payment.
+private struct SettledHero: View {
+    let trip: Trip
+    let last: Payment?
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        VStack(spacing: Spacing.sm) {
+            StampView(spec: trip.stamp).frame(width: 140, height: 104).rotationEffect(.degrees(-7)).accessibilityHidden(true)
+            Text("Everyone’s settled").font(.title.bold())
+            if let last {
+                Text(PaymentRow.title(last, me: app.userId, name: app.name(of:)) + " " + Money.string(last.amountCents) + " · "
+                     + [last.method.title, ExpenseLine.day(last.date)].compactMap { $0 }.joined(separator: " · "))
+                    .font(.footnote).foregroundStyle(Color.tsSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Spacing.lg)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A payment in the trip's list: the transfer icon, who paid whom, the method and day, and a gray amount.
+struct PaymentRow: View {
+    let payment: Payment
+    let trip: Trip
+    @Environment(AppModel.self) private var app
+
+    static func title(_ p: Payment, me: UUID?, name: (UUID) -> String) -> String {
+        if p.payerId == me { return "You paid \(name(p.payeeId))" }
+        if p.payeeId == me { return "\(name(p.payerId)) paid you" }
+        return "\(name(p.payerId)) paid \(name(p.payeeId))"
+    }
+
+    var body: some View {
+        ExpenseRowLayout(symbol: "arrow.left.arrow.right", title: Self.title(payment, me: app.userId, name: app.name(of:)),
+                         caption: [payment.method.title, ExpenseLine.day(payment.date)].compactMap { $0 }.joined(separator: " · "),
+                         label: nil, cents: payment.amountCents, color: .tsSecondary)
     }
 }
 

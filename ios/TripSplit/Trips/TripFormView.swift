@@ -2,10 +2,13 @@ import SwiftUI
 
 /// Add trip and Edit trip. Adding opens Add members next (members aren't required); you can go back from there to
 /// fix the name or dates. People picked in Add members join only on Save (Edit trip) or Done (Add trip).
+/// Edit trip lists each member's amount; someone can be removed, or leave, only at $0 (PRD › Net model).
 struct TripFormView: View {
     enum Mode { case add, edit(Trip) }
     let mode: Mode
     var onCreated: (Trip) -> Void = { _ in }
+    /// Opens Settle up on this trip, from an alert's Pay button (the form closes first).
+    var onSettleUp: () -> Void = {}
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +29,7 @@ struct TripFormView: View {
     /// The date whose calendar is open under its row.
     @State private var openDate: DateField?
     @State private var removing: Member?
+    @State private var confirmLeave = false
     @State private var confirmDelete = false
     @State private var error: String?
     @State private var errorTitle = "Couldn’t save"
@@ -76,9 +80,20 @@ struct TripFormView: View {
                 .onChange(of: nameFocused) { if nameFocused { withAnimation { openDate = nil } } }
 
                 if let trip = liveTrip {
-                    Section("Members") {
+                    Section {
+                        let nets = SettleUp.memberNets(trip: trip.id, app.settlements)
                         ForEach(trip.members, id: \.userId) { m in
-                            Text(m.userId == app.userId ? "You" : m.profiles.displayName)
+                            let amount = MemberAmount(cents: nets[m.userId] ?? 0, isYou: m.userId == app.userId)
+                            HStack {
+                                Text(m.userId == app.userId ? "You" : m.profiles.displayName)
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                                    Text(amount.label).font(.footnote).foregroundStyle(Color.tsSecondary)
+                                    Text(Money.string(amount.cents)).font(.headline)
+                                        .foregroundStyle(amount.cents < 0 ? Color.tsOwe : amount.cents > 0 ? Color.tsOwed : Color.tsSecondary)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
                                 .swipeActions {
                                     if m.userId != app.userId, !saving {
                                         Button("Remove", role: .destructive) { removing = m }
@@ -101,6 +116,13 @@ struct TripFormView: View {
                             }
                         }
                         .disabled(saving)
+                    } header: { Text("Members") } footer: {
+                        Text("Swipe left on someone to remove them. They can be removed, or leave, once they’re settled up.")
+                    }
+                    if !isAdding {
+                        Section {
+                            Button("Leave trip", role: .destructive) { confirmLeave = true }.disabled(saving)
+                        }
                     }
                     Section {
                         Button("Delete trip", role: .destructive) { confirmDelete = true }.disabled(saving)
@@ -129,12 +151,31 @@ struct TripFormView: View {
                 loaded = true
                 load()
             }
-            .confirmationDialog("Remove \(removing?.profiles.displayName ?? "")?", isPresented: .init(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing) { m in
-                Button("Keep their balance") { Task { await remove(m, keep: true) } }
-                Button("Wipe their balance", role: .destructive) { Task { await remove(m, keep: false) } }
-            } message: { _ in
-                Text("Keep: what they owe or are owed still counts, and they can still settle up. Wipe: their share is split among everyone else.")
+            .alert(removeTitle, isPresented: .init(get: { removing != nil }, set: { if !$0 { removing = nil } }), presenting: removing) { m in
+                if net(of: m.userId) == 0 {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Remove", role: .destructive) { Task { await remove(m) } }
+                } else if owesThem(m.userId) {
+                    Button("Not now", role: .cancel) {}
+                    Button("Pay \(m.profiles.displayName)") { settleUp() }
+                } else {
+                    Button("OK", role: .cancel) {}
+                }
+            } message: { m in
+                Text(net(of: m.userId) == 0 ? "Their past expenses stay as they are." : "Only members with a $0 balance can be removed.")
             }
+            .alert(leaveTitle, isPresented: $confirmLeave) {
+                let mine = net(of: app.userId)
+                if mine == 0 {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Leave", role: .destructive) { Task { await leave() } }
+                } else if mine < 0 {
+                    Button("Not now", role: .cancel) {}
+                    Button("Pay \(Money.string(mine))") { settleUp() }
+                } else {
+                    Button("OK", role: .cancel) {}
+                }
+            } message: { Text(leaveMessage) }
             .alert("Delete this trip?", isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) { Task { await deleteTrip() } }
@@ -227,11 +268,51 @@ struct TripFormView: View {
         dismiss()
     }
 
-    private func remove(_ m: Member, keep: Bool) async {
+    private func net(of user: UUID?) -> Int {
+        guard let trip = editing, let user else { return 0 }
+        return SettleUp.memberNets(trip: trip.id, app.settlements)[user] ?? 0
+    }
+
+    /// You owe this person something on the trip, so the alert can offer to pay them.
+    private func owesThem(_ user: UUID) -> Bool {
+        guard let trip = editing else { return false }
+        return app.settlements.contains { $0.tripId == trip.id && $0.payerId == app.userId && $0.payeeId == user }
+    }
+
+    private var removeTitle: String {
+        guard let m = removing else { return "" }
+        return net(of: m.userId) == 0 ? "Remove \(m.profiles.displayName)?" : "\(m.profiles.displayName) can’t be removed yet"
+    }
+
+    private var leaveTitle: String {
+        net(of: app.userId) == 0 ? "Leave \(editing?.name ?? "this trip")?" : "You can’t leave until you’re settled up"
+    }
+
+    private var leaveMessage: String {
+        let mine = net(of: app.userId), trip = editing?.name ?? "this trip"
+        if mine < 0 { return "You owe \(Money.string(mine)) on \(trip)." }
+        if mine > 0 { return "You’re owed \(Money.string(mine)) on \(trip)." }
+        return "You’ll stop seeing it. Anyone on the trip can add you back."
+    }
+
+    /// Closes the form and opens Settle up on this trip.
+    private func settleUp() {
+        dismiss()
+        onSettleUp()
+    }
+
+    private func remove(_ m: Member) async {
         guard let t = editing else { return }
-        retry = { await remove(m, keep: keep) }
-        do { try await app.removeMember(m.userId, from: t.id, keepBalance: keep) }
+        retry = { await remove(m) }
+        do { try await app.removeMember(m.userId, from: t.id) }
         catch { errorTitle = "Couldn’t remove them"; self.error = AppModel.describe("Check your connection and try again.", error) }
+    }
+
+    private func leave() async {
+        guard let t = editing else { return }
+        retry = { await leave() }
+        do { try await app.leaveTrip(t.id); dismiss() }
+        catch { errorTitle = "Couldn’t leave the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 
     private func deleteTrip() async {

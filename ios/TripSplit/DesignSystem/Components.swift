@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Shared pieces from the Figma library (Buttons, Trip Avatar, Balance Block, Balance Chip).
+// Shared pieces from the Figma library (Buttons, Trip Avatar, Balance Block).
 
 struct PrimaryButtonStyle: ButtonStyle {
     var fill: Color = .tsTintFill
@@ -68,24 +68,6 @@ struct BalanceBlock: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Spacing.lg)
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// The header total: the only place money shows a sign.
-struct BalanceChip: View {
-    let cents: Int
-    var body: some View {
-        HStack(spacing: Spacing.xs) {
-            Text(Money.signed(cents)).font(.headline)
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-        }
-        .foregroundStyle(cents == 0 ? Color.primary : .white)
-        .padding(.horizontal, Spacing.md).padding(.vertical, 6)
-        .background(cents < 0 ? Color.tsOweFill : cents > 0 ? Color.tsOwedFill : Color(.systemGray5), in: .capsule)
-        .fixedSize()
-        .contentShape(.rect.inset(by: -6))  // 44 pt tap target
-        .accessibilityLabel(cents < 0 ? "Balance, you owe \(Money.string(cents))"
-                            : cents > 0 ? "Balance, you’re owed \(Money.string(cents))" : "Balance, settled")
     }
 }
 

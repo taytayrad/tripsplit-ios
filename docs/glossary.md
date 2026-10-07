@@ -2,7 +2,7 @@
 
 One meaning per word. Use these terms in code, copy, and conversation. Code names are in `backticks`.
 
-The net model (approved 2026-10-06, `prd.md` › Net model) adds the terms at the end of the table and retires the ones marked **Retiring**. Until each issue ships, retiring terms still describe the running app.
+The net model (`prd.md` › Net model, built in TRIP-10 to TRIP-14) added the terms at the end of the table. Terms marked **Retired** describe the old pairwise app; don't use them for new work.
 
 | Term | Meaning |
 |---|---|
@@ -15,17 +15,17 @@ The net model (approved 2026-10-06, `prd.md` › Net model) adds the terms at th
 | **Share** (`expense_share.share_cents`) | One person's saved part of an expense, in cents. Fixed at save, and the only number balance math reads. Not to be confused with a share *count* (the `shares` split input). |
 | **Payment** (`payment`) | Money one person says they gave another, **logged** in TripSplit. Always between you and one other person, always on one trip. |
 | **Log** | The act of recording a payment in TripSplit. Coming back from Venmo is not logging. |
-| **Allocation** | **Retiring (TRIP-10).** How a single amount you log with a person is divided across the trips you share: oldest trip first. Produces one payment per trip touched. |
+| **Allocation** | **Retired (TRIP-10).** How a single amount you log with a person is divided across the trips you share: oldest trip first. Produces one payment per trip touched. |
 | **Net** | A signed amount: what you paid, minus your shares, minus payments you received, plus payments you made. Positive means you are owed; negative means you owe. Exists per trip, per person (pairwise), and overall. In the net model, every member has one net per trip. |
-| **Pairwise balance** | **Retiring (TRIP-10).** Net between you and one other person on one trip. The building block of every other balance. |
-| **Combined balance** | **Retiring (TRIP-13).** Pairwise balances with one person summed across every shared, non-deleted trip. One row on Your Balance. |
-| **Header total** | **Retiring (TRIP-13).** Your overall net across non-deleted trips. Shown in the balance chip. Equals the sum of combined balances. |
+| **Pairwise balance** | **Retired (TRIP-10).** Net between you and one other person on one trip. The building block of every other balance. |
+| **Combined balance** | **Retired (TRIP-13).** Pairwise balances with one person summed across every shared, non-deleted trip. One row on Your Balance. |
+| **Header total** | **Retired (TRIP-13).** Your overall net across non-deleted trips. Shown in the balance chip. Equals the sum of combined balances. |
 | **Settled** | A net of exactly $0. Use "settled", never "square". |
-| **Balance chip** | **Retiring (TRIP-13).** The header control showing the header total, signed (`-$42`, `$42`, `$0`). The only place money shows a sign. |
-| **Your Balance** | **Retiring (TRIP-13).** The sheet the balance chip opens: balance block plus people grouped under "You owe" and "Owes you". |
+| **Balance chip** | **Retired (TRIP-13).** The header control showing the header total, signed (`-$42`, `$42`, `$0`). The only place money shows a sign. |
+| **Your Balance** | **Retired (TRIP-13).** The sheet the balance chip opens: balance block plus people grouped under "You owe" and "Owes you". |
 | **Balance block** | The net-in-words component: label ("You owe", "You're owed", "Settled"), unsigned amount, optional detail line. |
-| **Person screen** | **Retiring (TRIP-13).** One person's combined balance, a trip group per shared trip, and the pay bar. |
-| **Pay bar** | **Retiring (TRIP-13).** Bottom bar on a person screen: shared pay apps plus Cash, or Record a Payment. |
+| **Person screen** | **Retired (TRIP-13).** One person's combined balance, a trip group per shared trip, and the pay bar. |
+| **Pay bar** | **Retired (TRIP-13).** Bottom bar on a person screen: shared pay apps plus Cash, or Record a Payment. |
 | **Log sheet** | The single sheet where every payment is logged, prefilled and editable. |
 | **Stamp** | A trip's generated, wordless, single-ink graphic (shape, glyph, ink, rotation, offset). The trip avatar. |
 | **Ink** | A stamp color: blue, green, red, purple, orange, teal. |

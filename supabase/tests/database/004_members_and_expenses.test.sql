@@ -4,12 +4,6 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(7);
 
-create function pg_temp.pair(who text, trip text, other text) returns bigint language plpgsql as $$
-begin
-  perform tests.authenticate_as(tests.id(who));
-  return coalesce((select cents from public.my_pair_balances()
-                   where trip_id = tests.id(trip) and other_user_id = tests.id(other)), 0);
-end $$;
 create function pg_temp.net(who text, trip text) returns bigint language plpgsql as $$
 begin
   perform tests.authenticate_as(tests.id(who));

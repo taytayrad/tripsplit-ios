@@ -54,7 +54,7 @@ select isnt((select display_name from public.profiles where id = tests.id('alex'
 -- Signed out: no functions.
 select tests.clear_authentication();
 set local role anon;
-select throws_ok('select public.my_header_total()', '42501', null, 'anon: can''t call balance functions');
+select throws_ok('select * from public.my_trip_settlements()', '42501', null, 'anon: can''t call balance functions');
 reset role;
 
 -- The share-sum invariant holds even for writes that bypass the functions.

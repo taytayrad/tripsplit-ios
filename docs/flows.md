@@ -61,7 +61,7 @@ sequenceDiagram
     end
 ```
 
-## Logging a payment across trips
+## Logging a payment
 
 ```mermaid
 sequenceDiagram
@@ -70,20 +70,22 @@ sequenceDiagram
     participant Pay as Venmo
     participant DB as Postgres
 
-    Y->>App: Jordan → Venmo (owe $90)
-    App->>Pay: Open with Jordan + $90
-    Y->>Pay: Pays $50
+    Y->>App: Trip detail → Pay → Settle up
+    App->>DB: my_trip_settlements() (already loaded)
+    Y->>App: Tyler's ticket (You owe $45, 2 trips)
+    App->>App: Payment: You → Tyler, $45, 2 Trips, today, Venmo
+    Y->>App: Pay $45 with Venmo
+    App->>Pay: Open with Tyler + $45
+    Y->>Pay: Pays $45
     Y->>App: Returns (nothing logged yet)
-    App->>App: Log sheet "Did you pay Jordan?" $90
-    Y->>App: Edits to $50
-    App->>App: "Pays off Lake House ($30) first,<br/>then $20 toward Coast Road."
-    Y->>App: Log $50 payment
-    App->>DB: log_payment(Jordan, 5000, pay, venmo, request_id)
-    DB->>DB: Order shared open trips oldest first<br/>Insert payment LH 3000, payment CR 2000<br/>Insert activity_events
+    App->>App: Log Payment Sheet "Did you pay Tyler?" $45
+    Y->>App: Log $45 payment
+    App->>DB: log_payment(Tyler, pay, venmo, request_id, paid_on,<br/>[Lake House 1500, Coast Road 3000])
+    DB->>DB: Lock both trips, check each part ≤ what both sides allow<br/>Insert one payment per trip + activity_events
     DB-->>App: Payments
-    App->>App: Jordan screen: You owe $40
+    App->>App: Back on Settle up: the stamp slams onto Tyler's ticket
     Note over App,DB: Retrying with the same request_id<br/>creates nothing new
-    Note over Y,App: Apple Cash: a guide sheet first (steps, amount copied),<br/>then the Messages app with the message written;<br/>coming back opens the same log sheet. Zelle: amount<br/>copied, log sheet opens right away.
+    Note over Y,App: Apple Cash: a guide sheet first (steps, amount copied),<br/>then Messages; coming back opens the same sheet.<br/>Zelle: amount copied, the sheet opens right away.<br/>Cash and Record log straight from the Payment page.
 ```
 
 ## State machines

@@ -136,10 +136,7 @@ Every multi-row money write is one function in one transaction, so invariants ho
 |---|---|
 | Member nets | private view `private.member_nets` → `(trip_id, user_id, cents)` per live trip; `private.member_net(trip, user)` for one |
 | Suggested payments | `my_trip_settlements()` → `(trip_id, seq, payer_id, payee_id, cents)`: every suggestion on trips you're an active member of (plus any involving you on a trip you were removed from), in order. Built by `private.suggested_payments(trip)` (money-rules › Suggested payments) |
-| Pairwise balances (retiring in TRIP-13) | `my_pair_balances()` → `(trip_id, other_user_id, cents)`, positive = they owe you. Built on the private view `private.pair_balances` (non-deleted trips, expenses, shares, non-deleted payments), which clients can't query directly |
 | Your net per trip | `my_trip_nets()` → `(trip_id, cents)`, from `member_nets` |
-| Combined balance (Your Balance rows) | `my_combined_balances()` → `(other_user_id, cents)`, $0 people omitted |
-| Header total (balance chip) | `my_header_total()` → `cents`, the sum of the combined rows |
 | Activity dollar line | `activity_events.deltas[you]`, snapshotted when the event was written so history doesn't shift after later edits |
 
 ## Notes
