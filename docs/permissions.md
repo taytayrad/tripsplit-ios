@@ -12,7 +12,8 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Edit trip name, dates, stamp | active member | |
 | Add a member, share the invite link | active member | 20-member cap |
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
-| Remove a member (keep or wipe) | active member | the remover chooses keep or wipe |
+| Remove a member | active member | only when that member's net on the trip is $0 |
+| Leave a trip | active member, yourself | only when your net on the trip is $0 |
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |
 | Add, edit, or delete an expense | active member | |
@@ -35,6 +36,6 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 
 ## Gotchas
 
-- **Removed members lose access** to the trip and its Activity. With *keep*, their balance still shows on their own Your Balance and person screens, built from their payment and pair rows only.
+- **Removed members lose access** to the trip and its Activity. They're always settled when they go (TRIP-14), so they never need a way back in to pay. Members removed with *keep* before that still see the suggestions that involve them.
 - **Deleted trips** disappear from every list and total, but the `trip_deleted` Activity row stays visible to members at deletion time, so they can undelete.
 - Pay-app handles are only ever shown to people you share a trip with.

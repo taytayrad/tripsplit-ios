@@ -8,7 +8,7 @@ The net model (approved 2026-10-06, `prd.md` › Net model) adds the terms at th
 |---|---|
 | **You** | The signed-in person. Every amount in the UI is from their point of view. |
 | **Trip** (`trip`) | A group of people sharing costs. Has members, expenses, payments, and an optional date range. A trip can be soft-deleted and undeleted. |
-| **Member** (`trip_member`) | A person on a trip. A member can be **removed**, and removal either **keeps** or **wipes** their balance. |
+| **Member** (`trip_member`) | A person on a trip. A member can be **removed**, or **leave**, only when their net on the trip is $0. |
 | **Expense** (`expense`) | One cost paid by exactly one **payer**, divided among members by a **split**. |
 | **Payer** | The one person who paid an expense. Can be outside the split. |
 | **Split kind** (`split_kind`) | `equal`, `exact`, `percent`, or `shares`. How the expense amount was divided. |
@@ -31,8 +31,8 @@ The net model (approved 2026-10-06, `prd.md` › Net model) adds the terms at th
 | **Ink** | A stamp color: blue, green, red, purple, orange, teal. |
 | **Activity event** (`activity_event`) | An immutable record of something that happened on a trip, shown in Activity. |
 | **Dollar line** | The line under an Activity statement saying how that event changed *your* money ("You owe $36"). |
-| **Wipe** | **Retiring (TRIP-14).** Removing a member and re-splitting their unpaid shares among remaining members. The only time saved shares change. |
-| **Keep** | **Retiring (TRIP-14).** Removing a member while their balances still count and they can still be paid or recorded. |
+| **Wipe** | **Retired (TRIP-14).** Removing a member and re-splitting their unpaid shares. Only members removed before TRIP-14 were wiped. |
+| **Keep** | **Retired (TRIP-14).** Removing a member while their balance still counted. Only members removed before TRIP-14 were kept. |
 | **Suggested payment** | One payment the app proposes so a trip settles in the fewest payments: largest debtor pays largest creditor. Calculated, never stored. May pair people who never shared an expense. |
 | **Settle up** | The page that lists the people you have a suggested payment with, as Member Tickets. Starts on a trip when opened from one; "All trips" shows everyone. |
 | **Member Ticket** | One person on Settle up: trip stamp(s) (up to two, then "+N"), name, caption, and "You owe" or "You lent" with the amount. |

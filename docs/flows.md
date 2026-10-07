@@ -108,11 +108,9 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> Active: create_trip (creator) / join_trip / added
-    Active --> RemovedKept: remove_member(keep)
-    Active --> RemovedWiped: remove_member(wipe)
-    RemovedKept --> RemovedKept: can still be paid or recorded
-    note right of RemovedKept: No trip access.<br/>Balances still count.
-    note right of RemovedWiped: No trip access.<br/>Shares re-split.
+    Active --> Removed: remove_member / leave_trip (net is $0)
+    Removed --> Active: add_member
+    note right of Removed: No trip access.<br/>Net stays $0.<br/>(Members removed with keep or wipe before TRIP-14 stay as they were.)
 ```
 
 ### Payment

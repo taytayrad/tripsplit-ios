@@ -45,7 +45,7 @@ erDiagram
         timestamptz joined_at
         timestamptz removed_at "nullable"
         uuid removed_by "nullable"
-        text removal "keep | wipe, nullable"
+        text removal "settled (keep | wipe before TRIP-14), nullable"
     }
     expenses {
         uuid id PK
@@ -126,7 +126,8 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `delete_expense(id)` | hard-deletes expense and shares, logs `expense_deleted` with deltas |
 | `log_payment(other_user, direction, method, request_id, paid_on, parts)` | `direction` is `pay` (you pay them) or `record` (they paid you). `parts` is `[{trip_id, cents}]`: one payment per trip ("2 Trips" sends two). Each part must be no more than the payer owes and the payee is owed on that trip, and both people must be on it. Locks the trips, inserts the rows, logs `payment_logged` per row, and returns them. Retrying a `request_id` returns the existing rows (only to the person who logged it) |
 | `delete_payment(id)` | soft-deletes, logs `payment_deleted`; refused on a deleted trip so undelete restores it exactly |
-| `remove_member(trip, user, keep \| wipe)` | marks removal; for wipe, rewrites shares and stores the expense as an exact split (see money-rules › Wipe) |
+| `remove_member(trip, user)` | removes someone else, only when their net on the trip is $0 ("only members with a $0 balance can be removed"); logs `member_removed` with empty deltas |
+| `leave_trip(trip)` | removes you, only when your net is $0 ("settle up before leaving"); logs `member_removed` with you as the actor |
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
 
 ## Reads (calculated)

@@ -17,7 +17,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 | `payment_deleted` | Sammy removed a payment in "Orlando 2027" | the reversal | the other person | `notify_paid` |
 | `trip_deleted` | Sammy deleted the trip "Orlando 2027" | none | every other active member | `notify_trip_deleted` |
 | `trip_undeleted` | Sammy restored the trip "Orlando 2027" | none | every other active member | `notify_trip_deleted` |
-| `member_removed` | Taylor removed Jordan from "Coast Road" | wipe only: the re-split delta | nobody | — |
+| `member_removed` | Taylor removed Jordan from "Coast Road"; when the actor is the person removed: Jordan left "Coast Road" | none (only settled members leave) | nobody | — |
 | `trip_edited` (name, dates, stamp) | — (not shown) | — | nobody | — |
 
 ## Rules
