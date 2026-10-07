@@ -64,6 +64,15 @@ struct SettlingTests {
         #expect(SettleUp.oldestFirst([c, b, a]) == [a.id, b.id, c.id])
     }
 
+    // A payment page follows live balances: a trip that settled meanwhile drops out, a smaller balance shrinks.
+    @Test func theCurrentTicketFollowsLiveSuggestions() {
+        let cr = Self.trip("Coast Road"), lh = Self.trip("Lake House")
+        let ticket = SettleTicket(personId: Self.tyler, direction: .pay, parts: [.init(tripId: lh.id, cents: 1500), .init(tripId: cr.id, cents: 3000)])
+        let now = [Self.s(cr, Self.you, Self.tyler, 1000), Self.s(cr, Self.atish, Self.tyler, 2000)]
+        #expect(SettleUp.current(ticket, now, me: Self.you) == [.init(tripId: cr.id, cents: 1000)])
+        #expect(SettleUp.current(ticket, [], me: Self.you).isEmpty)
+    }
+
     // MARK: Member amounts and settled
 
     // G2: M1's suggestions give every member's net.

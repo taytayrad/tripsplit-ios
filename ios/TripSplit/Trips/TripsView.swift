@@ -5,6 +5,7 @@ struct TripsView: View {
     @State private var addingTrip = false
     @State private var showSettled = false
     @State private var path: [UUID] = []
+    @State private var settling = false
 
     private var visible: [Trip] {
         app.trips.filter { showSettled || !TripVisibility.isHidden(endDate: $0.end, netCents: app.nets[$0.id] ?? 0) }
@@ -33,7 +34,8 @@ struct TripsView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Trips")
-            .toolbar { MainHeader { addingTrip = true } }
+            .toolbar { MainHeader(onAddTrip: { addingTrip = true }, onSettleUp: { settling = true }) }
+            .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
             .refreshable { await app.refresh() }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .sheet(isPresented: $addingTrip) {

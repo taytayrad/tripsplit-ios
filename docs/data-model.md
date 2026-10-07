@@ -109,6 +109,7 @@ erDiagram
 | `payer_id ≠ payee_id`, and `logged_by ∈ {payer_id, payee_id}` | check constraint |
 | One payment per trip per `request_id` | unique `(request_id, trip_id)` |
 | A payment is no more than the payer owes and the payee is owed on that trip | `log_payment` function |
+| Someone who left a trip at $0 stays at $0: no expense edit or delete, or payment delete, may move their net | deferred constraint triggers on `expenses`, `expense_shares` and `payments` (`private.check_departed_settled`) |
 | Expenses, shares, and payments change only through the functions below | RLS: no direct client insert or update on money tables |
 | Activity events are append-only and written only by functions or triggers | RLS |
 

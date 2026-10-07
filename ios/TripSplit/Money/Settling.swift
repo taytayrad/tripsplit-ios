@@ -43,6 +43,18 @@ enum SettleUp {
 
     private struct TicketKey: Hashable { let person: UUID; let direction: SettleDirection }
 
+    /// What's suggested right now between you and the ticket's person, on the ticket's trips: a payment page keeps
+    /// following live balances, and a trip that settled meanwhile drops out.
+    static func current(_ ticket: SettleTicket, _ settlements: [Settlement], me: UUID) -> [SettleTicket.Part] {
+        ticket.parts.compactMap { part in
+            let cents = settlements.filter { s in
+                s.tripId == part.tripId && (ticket.direction == .pay ? s.payerId == me && s.payeeId == ticket.personId
+                                                                      : s.payerId == ticket.personId && s.payeeId == me)
+            }.reduce(0) { $0 + $1.cents }
+            return cents > 0 ? SettleTicket.Part(tripId: part.tripId, cents: cents) : nil
+        }
+    }
+
     /// Every member's net on a trip, from its suggestions: what they're paid minus what they pay. Members not
     /// listed are at $0.
     static func memberNets(trip: UUID, _ settlements: [Settlement]) -> [UUID: Int] {

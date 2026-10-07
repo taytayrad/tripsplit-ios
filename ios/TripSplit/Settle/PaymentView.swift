@@ -23,6 +23,8 @@ struct PaymentView: View {
     @State private var requestId = UUID()
     /// A pay app you opened; coming back asks whether you paid.
     @State private var awaitingReturn = false
+    /// What the pay app was opened for: the confirmation logs against this, not balances that moved since.
+    @State private var pending: [SettleTicket.Part]?
     @State private var confirming = false
     @State private var appleCash = false
     @State private var saving = false
@@ -41,12 +43,16 @@ struct PaymentView: View {
     private var methods: [PayMethod] { PayOptions.methods(direction: ticket.direction, me: app.profile, them: them) }
     private var chosen: PayMethod { method ?? PayOptions.initial(direction: ticket.direction, me: app.profile, them: them) }
     private var cents: Int? { Money.cents(from: amountText) }
-    private var max: Int { trip.flatMap { t in ticket.parts.first { $0.tripId == t }?.cents } ?? ticket.cents }
+    /// The ticket as it stands now (balances can change while the page is open), narrowed to the chosen trip.
+    private var chosenParts: [SettleTicket.Part] {
+        let live = app.userId.map { SettleUp.current(ticket, app.settlements, me: $0) } ?? []
+        return trip.map { t in live.filter { $0.tripId == t } } ?? live
+    }
+    private var max: Int { chosenParts.reduce(0) { $0 + $1.cents } }
     private var problem: String? { PaymentLimit.problem(cents: cents, max: max, direction: ticket.direction, otherName: name) }
     private var parts: [PaymentPart]? {
         guard let cents, problem == nil else { return nil }
-        if let trip { return [PaymentPart(trip_id: trip, cents: cents)] }
-        return SettleUp.split(cents, across: ticket.parts)
+        return SettleUp.split(cents, across: chosenParts)
     }
 
     var body: some View {
@@ -114,7 +120,7 @@ struct PaymentView: View {
         }
         .sheet(isPresented: $confirming) {
             LogPaymentSheet(title: ticket.direction == .pay ? "Did you pay \(name)?" : "Did \(name) pay you?", note: confirmNote,
-                            initialCents: cents ?? max, max: max, direction: ticket.direction, otherName: name) { logged in
+                            initialCents: pendingTotal, max: pendingTotal, direction: ticket.direction, otherName: name) { logged in
                 try await log(logged)
             }
         }
@@ -124,6 +130,7 @@ struct PaymentView: View {
     }
 
     private var amount: String { Money.string(cents ?? 0) }
+    private var pendingTotal: Int { (pending ?? chosenParts).reduce(0) { $0 + $1.cents } }
 
     private var cta: String {
         if ticket.direction == .record { return "Record \(amount) payment" }
@@ -162,8 +169,10 @@ struct PaymentView: View {
     }
 
     private func act() {
-        guard let cents, parts != nil else { return }
+        // Checked against live balances right before money leaves TripSplit.
+        guard let cents, let parts else { return }
         amountFocused = false
+        pending = parts.map { SettleTicket.Part(tripId: $0.trip_id, cents: $0.cents) }
         if ticket.direction == .record || chosen == .cash || chosen == .recorded {
             Task { await logNow(cents) }
             return
@@ -201,8 +210,7 @@ struct PaymentView: View {
 
     /// Logs `cents` across the chosen trip(s), then goes back to Settle up.
     private func log(_ cents: Int) async throws {
-        let split = trip.map { [PaymentPart(trip_id: $0, cents: cents)] } ?? SettleUp.split(cents, across: ticket.parts)
-        guard let split else { return }
+        guard let split = SettleUp.split(cents, across: pending ?? chosenParts) else { return }
         let rows = try await app.logPayment(with: ticket.personId, direction: ticket.direction, method: chosen, paidOn: date,
                                             parts: split, requestId: requestId)
         onLogged(PaidTicket(personId: ticket.personId, direction: ticket.direction, cents: rows.reduce(0) { $0 + $1.amountCents },

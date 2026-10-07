@@ -1,7 +1,7 @@
 -- Removing and leaving only at $0 (docs/money-rules.md › Removing and leaving, golden cases R1–R3).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(14);
 
 create function pg_temp.net(who text, trip text) returns bigint language plpgsql as $$
 begin
@@ -50,6 +50,36 @@ select is((select count(*) from public.activity_events
 select tests.authenticate_as(tests.id('tyler'));
 select throws_ok(format('select public.remove_member(%L, %L)', tests.id('cr'), tests.id('tyler')),
                  'P0001', 'use leave_trip to leave', 'remove_member: not for yourself');
+
+-- Someone who left at $0 stays at $0: no edit, expense delete or payment delete can give them a balance.
+-- (Deferred checks run at commit, so each attempt runs inside a savepoint with the constraints set immediate.)
+select tests.users('youD', 'joD');
+select tests.trip('crD', array['youD', 'joD']);
+create temp table t_d on commit drop as select tests.equal('crD', 'youD', 6000, array['youD', 'joD']) as id;
+grant select on t_d to authenticated;
+select tests.authenticate_as(tests.id('joD'));
+select public.log_payment(tests.id('youD'), 'pay', 'cash', gen_random_uuid(), current_date,
+                          jsonb_build_array(jsonb_build_object('trip_id', tests.id('crD'), 'cents', 3000)));
+select public.leave_trip(tests.id('crD'));
+select tests.authenticate_as(tests.id('youD'));
+set constraints all immediate;
+select throws_ok(format('select public.save_expense(%L, %L, %L, %L, 9000, %L, %L, %L, current_date)',
+                        tests.id('crD'), (select id from t_d), 'Stay', 'lodging', tests.id('youD'), 'equal',
+                        jsonb_build_array(jsonb_build_object('user_id', tests.id('youD'), 'value', 1),
+                                          jsonb_build_object('user_id', tests.id('joD'), 'value', 1))::text),
+                 'P0001', 'that would change the balance of someone who left this trip; add them back first',
+                 'a departed member: editing their expense is refused');
+select throws_ok(format('select public.delete_expense(%L)', (select id from t_d)),
+                 'P0001', 'that would change the balance of someone who left this trip; add them back first',
+                 'a departed member: deleting their expense is refused');
+select throws_ok(format('select public.delete_payment(%L)', (select id from public.payments where trip_id = tests.id('crD'))),
+                 'P0001', 'that would change the balance of someone who left this trip; add them back first',
+                 'a departed member: deleting their payment is refused');
+select lives_ok(format('select public.save_expense(%L, null, %L, %L, 1000, %L, %L, %L, current_date)',
+                       tests.id('crD'), 'Coffee', 'coffee', tests.id('youD'), 'equal',
+                       jsonb_build_array(jsonb_build_object('user_id', tests.id('youD'), 'value', 1))::text),
+                'a new expense without them is fine');
+set constraints all deferred;
 
 select * from finish();
 rollback;

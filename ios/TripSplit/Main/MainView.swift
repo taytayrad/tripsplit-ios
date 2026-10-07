@@ -15,13 +15,15 @@ struct MainView: View {
     }
 }
 
-/// The header on every main screen: Add (right). Add logs an expense; with no trips yet it starts a trip. Another
-/// trip starts from the Add trip button under the trip cards. There's no running total: money lives on each trip
-/// (PRD › Net model).
+/// The header on every main screen: Settle up (left) and Add (right). Settle up opens All trips, so anyone you
+/// have a balance with stays reachable, including on a trip you were removed from before TRIP-14. Add logs an
+/// expense; with no trips yet it starts a trip. There's no running total: money lives on each trip (PRD › Net model).
 struct MainHeader: ToolbarContent {
     let onAddTrip: () -> Void
+    let onSettleUp: () -> Void
 
     var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) { Button("Settle up", action: onSettleUp) }
         if #available(iOS 26, *) {
             ToolbarItem(placement: .topBarTrailing) { add }.sharedBackgroundVisibility(.hidden)
         } else {

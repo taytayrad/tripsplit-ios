@@ -26,6 +26,7 @@ flowchart LR
     welcome -->|Add expense| expense
 
     trip -- "Pay / Settle up" --> settle["Settle up [U1, U2]"]
+    trips -- "Settle up (header)" --> settle
     settle -- "Member Ticket (you owe)" --> pay["Payment [P1, P5]"]
     settle -- "Member Ticket (you lent)" --> record["Payment · record [P3]"]
     pay -- Method --> method["Method [P2]"]

@@ -93,7 +93,7 @@ Either person on a payment can delete it (soft delete). Deleted payments are exc
 
 ## Removing and leaving
 
-A member can be removed, or leave, only when their net on the trip is exactly $0. Nothing is re-split or rewritten: a settled member's past expenses and payments stay as they were, and their net stays $0. (Keep and wipe are gone. Members removed with *keep* before the net model still count in the math until their net is $0.)
+A member can be removed, or leave, only when their net on the trip is exactly $0. Nothing is re-split or rewritten: a settled member's past expenses and payments stay as they were, and their net stays $0. It has to stay $0: editing or deleting an expense they're on, or deleting their payment, is refused while they're off the trip (add them back first). (Keep and wipe are gone. Members removed with *keep* before the net model still count in the math until their net is $0.)
 
 ## Golden cases
 
