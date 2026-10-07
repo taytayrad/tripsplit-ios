@@ -1,5 +1,7 @@
 # Money rules
 
+> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
+
 The math every balance, split, and payment must follow. Code that touches money is correct only if it passes every **golden case** below. Turn each one into a test before writing the code it covers.
 
 Behavior and copy live in [`prd.md`](../prd.md). This file is the math. Terms are defined in [`glossary.md`](glossary.md).

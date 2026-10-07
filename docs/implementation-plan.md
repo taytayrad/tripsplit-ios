@@ -24,6 +24,7 @@ prd.md          product requirements + decision log
 | 4. Balances and settling | Balance chip, Your Balance, person screen, logging payments | 3 |
 | 5. Activity and notifications | Feed, undelete, push, Profile | 4 |
 | 6. Hardening and beta | Failure states, accessibility, TestFlight | 5 |
+| 7. Net model | One net per member per trip, Settle up and Payment pages, settled-before-leaving | 4 |
 
 A **parallel track** runs alongside: user testing the Figma prototype during phases 0–2, so its feedback lands before phases 3–4 build those screens.
 
@@ -148,6 +149,22 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 - A TestFlight build is installed by the close-friends beta group.
 - Zero critical accessibility issues in an Accessibility Inspector audit of the core flows.
 - All test tasks completed by testers without help (or the misses logged as issues).
+
+## Phase 7: Net model
+
+Approved 2026-10-06 (`prd.md` › Prototype decisions › Net model; Figma › Settle up & Payment). Replaces most of phase 4's screens. Order: TRIP-10 first; then TRIP-11 and TRIP-14 in parallel; then TRIP-12; TRIP-13 last.
+
+**Build**
+- TRIP-10: net per member per trip, suggested payments, payments per trip (money-rules golden cases first).
+- TRIP-11: Settle up page and Payment page, Log Payment Sheet on return, stamp slam on Settle up.
+- TRIP-12: Trip detail with Pay, pinned Add expense, stamped settled state.
+- TRIP-13: remove the header total, Your Balance, and the person screen.
+- TRIP-14: remove or leave only when settled; Leave trip; member amounts in Edit trip.
+
+**Exit criteria**
+- Every new golden case passes, and suggested payments settle every trip to exactly $0.
+- The comps' scenario (Coast Road: You, Atish, Tyler) reproduces end to end on two simulators.
+- No screen shows a signed total, and nobody can leave or be removed with money still open.
 
 ---
 

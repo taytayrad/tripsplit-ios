@@ -1,5 +1,7 @@
 # Data model
 
+> **Changing with the net model.** TRIP-10 replaces pairwise balances with one net per member per trip and suggested payments (`prd.md` › Prototype decisions › Net model). Until it ships, this file describes the running app.
+
 The Supabase Postgres schema, implemented through Phase 3 (`push` and `device_tokens` writes arrive in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
