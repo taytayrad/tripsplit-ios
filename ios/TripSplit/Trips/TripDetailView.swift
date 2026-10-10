@@ -89,7 +89,7 @@ struct TripDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
             .sheet(isPresented: $editing) {
-                TripFormView(mode: .edit(trip), onSettleUp: { settling = true })
+                TripFormView(mode: .edit(trip), onSettleUp: { settling = true }, onTripGone: { dismiss() })
             }
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: trip.id) }
             .navigationDestination(item: $openExpense) { ExpenseDetailView(expenseId: $0, fromTrip: true) }

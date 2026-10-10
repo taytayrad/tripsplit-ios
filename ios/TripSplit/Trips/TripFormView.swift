@@ -9,6 +9,8 @@ struct TripFormView: View {
     var onCreated: (Trip) -> Void = { _ in }
     /// Opens Settle up on this trip, from an alert's Pay button (the form closes first).
     var onSettleUp: () -> Void = {}
+    /// The trip is gone for you (deleted, or you left): closes the trip's screen along with this sheet.
+    var onTripGone: () -> Void = {}
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -312,15 +314,23 @@ struct TripFormView: View {
     private func leave() async {
         guard let t = editing else { return }
         retry = { await leave() }
-        do { try await app.leaveTrip(t.id); dismiss() }
+        do { try await app.leaveTrip(t.id); closeGoneTrip() }
         catch { errorTitle = "Couldn’t leave the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
     }
 
     private func deleteTrip() async {
         guard let t = editing else { return }
         retry = { await deleteTrip() }
-        do { try await app.deleteTrip(t.id); dismiss() }
+        do { try await app.deleteTrip(t.id); closeGoneTrip() }
         catch { errorTitle = "Couldn’t delete the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
+    }
+
+    /// Pops the trip and closes this sheet together while the trip still renders, then refreshes, so the trip
+    /// screen doesn't flash blank before it goes.
+    private func closeGoneTrip() {
+        dismiss()
+        onTripGone()
+        Task { await app.refresh() }
     }
 }
 

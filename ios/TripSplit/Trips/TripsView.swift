@@ -50,7 +50,9 @@ struct TripsView: View {
             .navigationTitle("Trips")
             .toolbar { MainHeader(onAddTrip: { addingTrip = true }, onSettleUp: { settling = true }) }
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
-            .refreshable { await app.refresh() }
+            // Its own task: a ScrollView's pull-to-refresh can stay pulled down when a view update lands while the
+            // action is still running (Trips is the one ScrollView; the List screens don't do this).
+            .refreshable { await Task { await app.refresh() }.value }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .sheet(isPresented: $addingTrip) {
                 TripFormView(mode: .add) { created in path = [created.id] }

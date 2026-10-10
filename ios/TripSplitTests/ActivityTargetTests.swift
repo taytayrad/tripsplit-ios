@@ -28,7 +28,16 @@ struct ActivityTargetTests {
         #expect(try event(kind).target(expenses: [], trips: []) == nil)  // a trip you can't see now
     }
 
-    @Test(arguments: ["payment_logged", "payment_deleted", "trip_deleted", "something_new"])
+    /// TRIP-21: a deleted trip's row asks to undelete it; once it's back, the same row opens it.
+    @Test func aDeletedTripRowAsksToUndelete() throws {
+        let row = try t.decode(L.json(id: "00000000-0000-0000-0000-000000000302", kind: "trip_deleted", actor: L.sammy,
+                                      actorName: "Sammy", tripName: "Orlando 2027", tripDeletedAt: "2026-10-09T12:00:00Z"))
+        #expect(row.target(expenses: [], trips: []) == .undelete(L.trip))
+        let back = try event("trip_deleted")  // the trip's deleted_at is clear again
+        #expect(back.target(expenses: [], trips: [L.trip]) == .trip(L.trip))
+    }
+
+    @Test(arguments: ["payment_logged", "payment_deleted", "something_new"])
     func otherRowsOpenNothing(_ kind: String) throws {
         #expect(try event(kind, expense: Self.expense).target(expenses: [Self.expense], trips: [L.trip]) == nil)
     }

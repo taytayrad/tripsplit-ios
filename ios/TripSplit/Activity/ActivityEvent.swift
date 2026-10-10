@@ -45,18 +45,21 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
 
     var tripDeleted: Bool { tripDeletedAt != nil }
 
-    enum Target: Equatable { case expense(UUID), trip(UUID) }
+    enum Target: Equatable { case expense(UUID), trip(UUID), undelete(UUID) }
 
     /// What tapping this row opens (TRIP-20): an expense row opens its details (a deleted one, its deleted state);
-    /// a trip or member row opens the trip. Nil when there's nothing to open: an expense deleted before TRIP-27,
-    /// a trip you can't see now, a payment row, or `trip_deleted` (undelete is TRIP-21).
+    /// a trip or member row opens the trip. A `trip_deleted` row asks to undelete a trip that's still deleted
+    /// (TRIP-21), and opens it once it's back. Nil when there's nothing to open: an expense deleted before TRIP-27,
+    /// a trip you can't see now, or a payment row.
     func target(expenses: Set<UUID>, trips: Set<UUID>) -> Target? {
         switch kind {
         case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored:
             return expenseId.flatMap { expenses.contains($0) ? .expense($0) : nil }
         case .tripCreated, .tripUndeleted, .memberJoined, .memberRemoved:
             return trips.contains(tripId) ? .trip(tripId) : nil
-        case .paymentLogged, .paymentDeleted, .tripDeleted, .unknown:
+        case .tripDeleted:
+            return trips.contains(tripId) ? .trip(tripId) : tripDeleted ? .undelete(tripId) : nil
+        case .paymentLogged, .paymentDeleted, .unknown:
             return nil
         }
     }
