@@ -53,12 +53,14 @@ struct BalanceBlock: View {
     let cents: Int
     var label: String?
     var detail: String?
+    /// The amount to show when it isn't the net, in gray: an expense's total ("You paid $60", "Total $60").
+    var shownCents: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(label ?? (cents < 0 ? "You owe" : cents > 0 ? "You’re owed" : "Settled"))
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
-            Text(Money.string(cents))
+            Text(Money.string(shownCents ?? cents))
                 .font(.system(size: 48, weight: .bold))
                 .foregroundStyle(cents < 0 ? Color.tsOwe : cents > 0 ? Color.tsOwed : Color.tsSecondary)
             if let detail {
@@ -68,6 +70,22 @@ struct BalanceBlock: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Spacing.lg)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A trip as a row's value: its stamp at 24 pt, then the name. More than one trip shows two overlapping stamps
+/// ("2 Trips"), like the Settle up tickets.
+struct TripLabel: View {
+    let stamps: [StampSpec]
+    let text: String
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            HStack(spacing: -8) {
+                ForEach(Array(stamps.prefix(2).enumerated()), id: \.offset) { StampAvatar(spec: $0.element, size: 24) }
+            }
+            Text(text)
+        }
     }
 }
 

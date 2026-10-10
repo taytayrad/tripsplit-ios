@@ -19,7 +19,8 @@ flowchart LR
     trips -- "+ / Add Trip" --> addtrip["Add trip [05]"] --> members["Add members [06, 07]"] --> trip["Trip detail [08, 10]"]
     trips -- card --> trip
     trip -- "Add expense" --> expense["Expense form [09, E1]"]
-    trip -- "expense row" --> expense
+    trip -- "expense row" --> details["Expense details [D1, D2, D7]"]
+    details -- Edit --> expense
     expense --> paidby["Paid by [09a]"]
     expense --> split["Split [09b–09e]"]
     expense -- delete --> delconfirm["Delete confirm [E2]"]
@@ -45,7 +46,7 @@ flowchart LR
 
 ## Figma sections
 
-Net model page [Flow · Net model](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-29): [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-30) (T1–T3), [Settle up](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-32) (U1–U3), [Payment](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-34) (P1–P5), [Remove & leave](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-36) (R1–R3).
+Net model page [Flow · Net model](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-29): [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-30) (T1–T3), [Settle up](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-32) (U1–U3), [Payment](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-34) (P1–P5), [Remove & leave](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-36) (R1–R3), [Expense details](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=271-1018) (D1–D7; D3–D6 are restore, TRIP-27).
 
 Flow (current build) page:
 
@@ -67,7 +68,7 @@ Flow (current build) page:
 | Screen | SwiftUI presentation |
 |---|---|
 | Trips, Activity, Profile | `TabView` tabs |
-| Trip detail, Add members | pushed in `NavigationStack` |
+| Trip detail, Add members, Expense details | pushed in `NavigationStack` (Expense details' Edit opens the Expense form sheet) |
 | Add trip, Expense form | `.sheet` with its own `NavigationStack` (payer and split pickers push inside it) |
 | Apple Cash guide | `.sheet` (large, scrolls) over the Payment page; Open Messages leaves for the Messages app, and coming back opens the Log Payment Sheet |
 | Log Payment Sheet | `.sheet` with medium detent, over the Payment page, when you come back from a pay app |

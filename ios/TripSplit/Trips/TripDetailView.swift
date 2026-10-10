@@ -9,6 +9,7 @@ struct TripDetailView: View {
     @State private var editing = false
     @State private var settling = false
     @State private var deletingPayment: Payment?
+    @State private var openExpense: UUID?
 
     var body: some View {
         if let trip = app.trip(tripId) {
@@ -61,7 +62,7 @@ struct TripDetailView: View {
                             case .expense(let expense):
                                 ExpenseRow(expense: expense, trip: trip)
                                     .contentShape(.rect)
-                                    .onTapGesture { app.expenseSheet = .edit(expense) }  // delete from there; no swipe
+                                    .onTapGesture { openExpense = expense.id }  // details; edit and delete from there, no swipe
                             case .payment(let payment):
                                 PaymentRow(payment: payment, trip: trip)
                                     .swipeActions {
@@ -91,6 +92,7 @@ struct TripDetailView: View {
                 TripFormView(mode: .edit(trip), onSettleUp: { settling = true })
             }
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: trip.id) }
+            .navigationDestination(item: $openExpense) { ExpenseDetailView(expenseId: $0, fromTrip: true) }
             .alert("Delete this payment?", isPresented: .init(get: { deletingPayment != nil }, set: { if !$0 { deletingPayment = nil } }),
                    presenting: deletingPayment) { p in
                 Button("Cancel", role: .cancel) {}

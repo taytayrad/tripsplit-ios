@@ -80,6 +80,52 @@ enum ExpenseLine {
     }
 }
 
+/// The split section on Expense details (Figma Expense details D1, D2): one row per person in the split, plus a
+/// payer outside it, you first. Amounts are the stored shares; nothing is recalculated.
+enum ExpenseSplit {
+    enum Tone: Equatable { case owe, owed, neutral }
+    struct Row: Equatable {
+        let userId: UUID
+        let label: String
+        let cents: Int
+        let tone: Tone
+        let caption: String?
+    }
+
+    /// "SPLIT EQUALLY · 3 PEOPLE". Counts the people in the split, not a payer outside it.
+    static func header(_ e: Expense) -> String {
+        let n = e.expenseShares.filter { $0.shareCents > 0 }.count
+        let kind = switch e.splitKind { case .equal: "SPLIT EQUALLY"; case .exact: "SPLIT EXACTLY"; case .percent: "SPLIT BY PERCENT"; case .shares: "SPLIT BY SHARES" }
+        return "\(kind) · \(n) \(n == 1 ? "PERSON" : "PEOPLE")"
+    }
+
+    /// `order` is the trip's member order; anyone not in it goes last.
+    static func rows(_ e: Expense, me: UUID?, order: [UUID]) -> [Row] {
+        var people = e.expenseShares.filter { $0.shareCents > 0 }.map(\.userId)
+        if !people.contains(e.payerId) { people.append(e.payerId) }
+        let rank = { (id: UUID) in id == me ? -1 : order.firstIndex(of: id) ?? order.count }
+        return people.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map { _, id in
+            let share = e.share(of: id) ?? 0
+            let isPayer = id == e.payerId
+            let (label, cents, tone): (String, Int, Tone) =
+                if id == me, let part = ExpenseLine.parts(amountCents: e.amountCents, youPaid: isPayer, yourShareCents: share) {
+                    (part.label, part.cents, part.label == "You owe" ? .owe : part.label == "You lent" ? .owed : .neutral)
+                } else if isPayer {
+                    share == e.amountCents ? ("Paid", e.amountCents, .neutral) : ("Gets back", e.amountCents - share, .owed)
+                } else {
+                    ("Owes", share, .owe)
+                }
+            var caption: [String] = []
+            if isPayer { caption.append("Paid \(Money.string(e.amountCents))" + (share == 0 ? " · not in the split" : "")) }
+            if share > 0, let input = e.expenseShares.first(where: { $0.userId == id })?.splitInput {
+                if e.splitKind == .percent { caption.append("\(input.formatted())%") }
+                if e.splitKind == .shares { caption.append(input == 1 ? "1 share" : "\(input.formatted()) shares") }
+            }
+            return Row(userId: id, label: label, cents: cents, tone: tone, caption: caption.isEmpty ? nil : caption.joined(separator: " · "))
+        }
+    }
+}
+
 /// The running total pinned above the keyboard, and whether the split can be saved.
 enum SplitFooter {
     struct Result: Equatable { let text: String; let isValid: Bool }
