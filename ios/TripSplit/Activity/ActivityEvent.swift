@@ -45,6 +45,16 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
 
     var tripDeleted: Bool { tripDeletedAt != nil }
 
+    /// Search (docs/events.md › Search): a person, the expense title, or the trip name. People are the actor and
+    /// a payment's payer and payee; `subject` is the expense title, or the removed person on `member_removed`.
+    /// Names match as stored ("Atish Dey") and as shown ("Atish D."). Case and accents don't matter.
+    func matches(_ query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return true }
+        let names = [actorName, payment?.payerName, payment?.payeeName, subject].compactMap { $0 }
+        return ([tripName] + names + names.map(PersonName.shown)).contains { $0.localizedStandardContains(query) }
+    }
+
     /// `expenses` is the live list. Own-cost lines do not read it: a later edit would rewrite an earlier row.
     func statement(viewer: UUID, viewerName: String, expenses: [Expense]) -> ActivityCopy.Result {
         _ = expenses
