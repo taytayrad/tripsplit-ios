@@ -92,32 +92,37 @@ enum ExpenseSplit {
         let caption: String?
     }
 
-    /// "SPLIT EQUALLY · 3 PEOPLE". Counts the people in the split, not a payer outside it.
+    /// "SPLIT EQUALLY · 3 PEOPLE". Counts the people in the split, not a payer outside it. Being in the split is
+    /// having a stored share, even one that rounds to $0 (money-rules S4: $0.01 between two is 0 and 1 cent).
     static func header(_ e: Expense) -> String {
-        let n = e.expenseShares.filter { $0.shareCents > 0 }.count
+        let n = e.expenseShares.count
         let kind = switch e.splitKind { case .equal: "SPLIT EQUALLY"; case .exact: "SPLIT EXACTLY"; case .percent: "SPLIT BY PERCENT"; case .shares: "SPLIT BY SHARES" }
         return "\(kind) · \(n) \(n == 1 ? "PERSON" : "PEOPLE")"
     }
 
     /// `order` is the trip's member order; anyone not in it goes last.
     static func rows(_ e: Expense, me: UUID?, order: [UUID]) -> [Row] {
-        var people = e.expenseShares.filter { $0.shareCents > 0 }.map(\.userId)
+        var people = e.expenseShares.map(\.userId)
         if !people.contains(e.payerId) { people.append(e.payerId) }
         let rank = { (id: UUID) in id == me ? -1 : order.firstIndex(of: id) ?? order.count }
         return people.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map { _, id in
-            let share = e.share(of: id) ?? 0
+            let stored = e.expenseShares.first { $0.userId == id }
+            let share = stored?.shareCents ?? 0
             let isPayer = id == e.payerId
             let (label, cents, tone): (String, Int, Tone) =
-                if id == me, let part = ExpenseLine.parts(amountCents: e.amountCents, youPaid: isPayer, yourShareCents: share) {
-                    (part.label, part.cents, part.label == "You owe" ? .owe : part.label == "You lent" ? .owed : .neutral)
+                if id == me {
+                    // In the split at $0 (S4) has no part of yours; it still reads as yours.
+                    ExpenseLine.parts(amountCents: e.amountCents, youPaid: isPayer, yourShareCents: share).map {
+                        ($0.label, $0.cents, $0.label == "You owe" ? .owe : $0.label == "You lent" ? .owed : .neutral)
+                    } ?? ("You owe", 0, .neutral)
                 } else if isPayer {
                     share == e.amountCents ? ("Paid", e.amountCents, .neutral) : ("Gets back", e.amountCents - share, .owed)
                 } else {
-                    ("Owes", share, .owe)
+                    ("Owes", share, share > 0 ? .owe : .neutral)
                 }
             var caption: [String] = []
-            if isPayer { caption.append("Paid \(Money.string(e.amountCents))" + (share == 0 ? " · not in the split" : "")) }
-            if share > 0, let input = e.expenseShares.first(where: { $0.userId == id })?.splitInput {
+            if isPayer { caption.append("Paid \(Money.string(e.amountCents))" + (stored == nil ? " · not in the split" : "")) }
+            if let input = stored?.splitInput {
                 if e.splitKind == .percent { caption.append("\(input.formatted())%") }
                 if e.splitKind == .shares { caption.append(input == 1 ? "1 share" : "\(input.formatted()) shares") }
             }

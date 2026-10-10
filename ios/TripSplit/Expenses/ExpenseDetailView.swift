@@ -126,7 +126,7 @@ private struct SplitRow: View {
         }
         .padding(.vertical, Spacing.xxs)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(name == "You" ? "\(row.label) \(Money.string(row.cents))"
-                            : "\(name), \(row.label.lowercased()) \(Money.string(row.cents))" + (row.caption.map { ", \($0)" } ?? ""))
+        .accessibilityLabel((name == "You" ? "\(row.label) \(Money.string(row.cents))"
+                             : "\(name), \(row.label.lowercased()) \(Money.string(row.cents))") + (row.caption.map { ", \($0)" } ?? ""))
     }
 }

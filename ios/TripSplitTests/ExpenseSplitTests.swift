@@ -50,6 +50,19 @@ struct ExpenseSplitTests {
         #expect(ExpenseSplit.rows(s, me: Self.you, order: Self.order).map(\.caption) == ["1 share", "Paid $30 · 2 shares"])
     }
 
+    /// Money rules S4: $0.01 split equally between you and Atish stores 0 and 1 cent. Both are in the split.
+    @Test func aShareThatRoundsToZeroIsStillInTheSplit() {
+        let paid = Self.expense(.equal, payer: Self.you, amount: 1, [(Self.you, 0, nil), (Self.atish, 1, nil)])
+        #expect(ExpenseSplit.header(paid) == "SPLIT EQUALLY · 2 PEOPLE")
+        #expect(ExpenseSplit.rows(paid, me: Self.you, order: Self.order) == [
+            .init(userId: Self.you, label: "You lent", cents: 1, tone: .owed, caption: "Paid $0.01"),
+            .init(userId: Self.atish, label: "Owes", cents: 1, tone: .owe, caption: nil),
+        ])
+        let theyPaid = Self.expense(.equal, payer: Self.atish, amount: 1, [(Self.you, 0, nil), (Self.atish, 1, nil)])
+        #expect(ExpenseSplit.rows(theyPaid, me: Self.you, order: Self.order).first
+                == .init(userId: Self.you, label: "You owe", cents: 0, tone: .neutral, caption: nil))
+    }
+
     @Test func yourOwnCost() {
         let e = Self.expense(.equal, payer: Self.you, amount: 1200, [(Self.you, 1200, nil)])
         #expect(ExpenseSplit.header(e) == "SPLIT EQUALLY · 1 PERSON")
