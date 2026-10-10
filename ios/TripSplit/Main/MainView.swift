@@ -83,7 +83,7 @@ struct ProfileTab: View {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: Spacing.xxs) {
-                        Text(app.profile?.displayName.nilIfEmpty ?? "You").font(.title3.weight(.semibold))
+                        Text(app.profile?.displayName.nilIfEmpty.map(PersonName.shown) ?? "You").font(.title3.weight(.semibold))
                         Text("Signed in with Apple").font(.footnote).foregroundStyle(Color.tsSecondary)
                     }
                 }

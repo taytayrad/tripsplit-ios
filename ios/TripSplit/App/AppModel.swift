@@ -188,9 +188,11 @@ final class AppModel {
         }
     }
 
+    /// The name to show for that person (`PersonName.shown`). "Someone" when we have none.
     func name(of user: UUID) -> String {
-        people.first { $0.id == user }?.displayName.nilIfEmpty
-            ?? trips.lazy.flatMap(\.tripMembers).first { $0.userId == user }?.profiles.displayName ?? "Someone"
+        let stored = people.first { $0.id == user }?.displayName.nilIfEmpty
+            ?? trips.lazy.flatMap(\.tripMembers).first { $0.userId == user }?.profiles.displayName
+        return stored.map(PersonName.shown) ?? "Someone"
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }

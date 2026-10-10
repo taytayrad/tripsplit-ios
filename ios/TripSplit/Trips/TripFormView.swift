@@ -85,7 +85,7 @@ struct TripFormView: View {
                         ForEach(trip.members, id: \.userId) { m in
                             let amount = MemberAmount(cents: nets[m.userId] ?? 0, isYou: m.userId == app.userId)
                             HStack {
-                                Text(m.userId == app.userId ? "You" : m.profiles.displayName)
+                                Text(m.userId == app.userId ? "You" : PersonName.shown(m.profiles.displayName))
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: Spacing.xxs) {
                                     Text(amount.label).font(.footnote).foregroundStyle(Color.tsSecondary)
@@ -102,7 +102,7 @@ struct TripFormView: View {
                         }
                         ForEach(pickedPeople(on: trip), id: \.id) { person in
                             HStack {
-                                Text(person.displayName)
+                                Text(PersonName.shown(person.displayName))
                                 Spacer()
                                 Text(isAdding ? "Joins when you tap Done" : "Joins when you save").font(.footnote).foregroundStyle(Color.tsSecondary)
                             }
@@ -157,7 +157,7 @@ struct TripFormView: View {
                     Button("Remove", role: .destructive) { Task { await remove(m) } }
                 } else if owesThem(m.userId) {
                     Button("Not now", role: .cancel) {}
-                    Button("Pay \(m.profiles.displayName)") { settleUp() }
+                    Button("Pay \(PersonName.shown(m.profiles.displayName))") { settleUp() }
                 } else {
                     Button("OK", role: .cancel) {}
                 }
@@ -281,7 +281,8 @@ struct TripFormView: View {
 
     private var removeTitle: String {
         guard let m = removing else { return "" }
-        return net(of: m.userId) == 0 ? "Remove \(m.profiles.displayName)?" : "\(m.profiles.displayName) can’t be removed yet"
+        let name = PersonName.shown(m.profiles.displayName)
+        return net(of: m.userId) == 0 ? "Remove \(name)?" : "\(name) can’t be removed yet"
     }
 
     private var leaveTitle: String {
@@ -346,14 +347,14 @@ struct AddMembersView: View {
                 } footer: { Text("Text it to your friends. The link opens TripSplit, or the App Store first.") }
 
                 Section("Members") {
-                    ForEach(trip.members, id: \.userId) { Text($0.userId == app.userId ? "You" : $0.profiles.displayName) }
+                    ForEach(trip.members, id: \.userId) { Text($0.userId == app.userId ? "You" : PersonName.shown($0.profiles.displayName)) }
                 }
 
                 let known = app.people.filter { !onTrip.contains($0.id) }.sorted { $0.displayName < $1.displayName }
                 if !known.isEmpty {
                     Section {
                         ForEach(known, id: \.id) { person in
-                            CheckRow(title: person.displayName, isOn: .init(
+                            CheckRow(title: PersonName.shown(person.displayName), isOn: .init(
                                 get: { picked.contains(person.id) },
                                 set: { if $0 { picked.insert(person.id) } else { picked.remove(person.id) } }))
                                 .disabled(busy)

@@ -7,10 +7,10 @@ struct WelcomeSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private var inviter: String {
-        trip.tripMembers.first { $0.userId == trip.createdBy }?.profiles.displayName.nilIfEmpty ?? "A friend"
+        trip.tripMembers.first { $0.userId == trip.createdBy }?.profiles.displayName.nilIfEmpty.map(PersonName.shown) ?? "A friend"
     }
     private var meta: String {
-        let names = trip.members.map { $0.userId == app.userId ? "You" : $0.profiles.displayName }
+        let names = trip.members.map { $0.userId == app.userId ? "You" : PersonName.shown($0.profiles.displayName) }
         let people = ListFormatter.localizedString(byJoining: names)
         guard let s = trip.start, let e = trip.end else { return people }
         return "\(DayFormat.range(s, e)) · \(people)"
