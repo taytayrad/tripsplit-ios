@@ -89,6 +89,9 @@ erDiagram
         uuid payment_id "nullable"
         text subject "title snapshot, e.g. Costco"
         jsonb deltas "user_id -> cents, effect on each person"
+        uuid expense_payer_id "nullable, snapshot"
+        int expense_amount_cents "nullable, snapshot"
+        int expense_payer_share_cents "nullable, snapshot"
         timestamptz created_at
     }
     device_tokens {
@@ -124,7 +127,7 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `add_member(trip, user)` | adds someone you already share a trip with (including a removed member, who comes back with no share in old expenses); logs `member_joined` |
 | `invite_preview(invite_token)` | trip name, inviter, and stamp for the sign-in screen; the one function anon may call |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
-| `delete_expense(id)` | hard-deletes expense and shares, logs `expense_deleted` with deltas |
+| `delete_expense(id)` | logs `expense_deleted` with deltas while the expense still exists (so the own-cost snapshot can be read), then hard-deletes the expense and its shares |
 | `log_payment(other_user, direction, method, request_id, paid_on, parts)` | `direction` is `pay` (you pay them) or `record` (they paid you). `parts` is `[{trip_id, cents}]`: one payment per trip ("2 Trips" sends two). Each part must be no more than the payer owes and the payee is owed on that trip, and both people must be on it. Locks the trips, inserts the rows, logs `payment_logged` per row, and returns them. Retrying a `request_id` returns the existing rows (only to the person who logged it) |
 | `delete_payment(id)` | soft-deletes, logs `payment_deleted`; refused on a deleted trip so undelete restores it exactly |
 | `remove_member(trip, user)` | removes someone else, only when their net on the trip is $0 ("only members with a $0 balance can be removed"); logs `member_removed` with empty deltas |
@@ -138,13 +141,13 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | Member nets | private view `private.member_nets` → `(trip_id, user_id, cents)` per live trip; `private.member_net(trip, user)` for one |
 | Suggested payments | `my_trip_settlements()` → `(trip_id, seq, payer_id, payee_id, cents)`: every suggestion on trips you're an active member of (plus any involving you on a trip you were removed from), in order. Built by `private.suggested_payments(trip)` (money-rules › Suggested payments) |
 | Your net per trip | `my_trip_nets()` → `(trip_id, cents)`, from `member_nets` |
-| Activity dollar line | `activity_events.deltas[you]`, snapshotted when the event was written so history doesn't shift after later edits |
+| Activity dollar line | `activity_events.deltas[you]`, plus the own-cost snapshot (`expense_payer_id`, `expense_amount_cents`, `expense_payer_share_cents`) when the delta is 0. Both are taken when the event is written, so a later edit does not change an earlier row |
 
 ## Notes
 
-- **Why deltas are snapshotted:** the PRD calculates the dollar line "from that event's effect on you". Recomputing that effect later, after edits and deletes, would change old Activity rows. A snapshot freezes it.
+- **Why deltas are snapshotted:** the PRD calculates the dollar line "from that event's effect on you". Recomputing that effect later, after edits and deletes, would change old Activity rows. A snapshot freezes it. The own-cost line ("You paid $X") is the case the delta cannot carry, because a zero is dropped, so the payer, amount, and payer's share are snapshotted beside it. Events written before that snapshot have no own-cost line.
 - **Realtime:** the publication holds `trips`, `trip_members`, `payments`, and `activity_events`, and the app re-queries on any change. `expenses` and `expense_shares` are left out on purpose: their DELETE events would reach every subscriber. Every change to them writes an `activity_events` row, and that row is the signal.
-- **Function privileges:** Postgres grants EXECUTE on new functions to PUBLIC. Every function in `public` is revoked from `public` and `anon`. The functions the app calls are granted to `authenticated` explicitly. The three trigger functions (`enforce_member_limit`, `check_share_sum`, `handle_new_user`) are revoked from `authenticated` too and run only as triggers. `invite_preview` is the one function `anon` may execute. pgTAP (`005_access`) fails if anything else is callable signed out.
+- **Function privileges:** Postgres grants EXECUTE on new functions to PUBLIC. Every function in `public` is revoked from `public` and `anon`. The functions the app calls are granted to `authenticated` explicitly. The trigger functions (`enforce_member_limit`, `check_share_sum`, `handle_new_user`, `check_departed_settled`, `snapshot_expense_facts`) are revoked from `authenticated` too and run only as triggers. `invite_preview` is the one function `anon` may execute. pgTAP (`005_access`) fails if anything else is callable signed out.
 - **Leftover bucket:** the private `trip-photos` storage bucket still exists, empty. Trip photos were removed (stamps only), and Supabase refuses deleting storage rows from SQL, so remove it from the dashboard if you want it gone.
 - **Stamp** is stored, not regenerated, so a trip looks the same on every device. Members can change it from Edit trip (a direct column update, like name and dates). Its JSON matches the app's `StampSpec` (`ios/TripSplit/DesignSystem/Stamp.swift`):
   ```json

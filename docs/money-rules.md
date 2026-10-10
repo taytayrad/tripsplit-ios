@@ -86,8 +86,8 @@ Either person on a payment can delete it (soft delete). Deleted payments are exc
 
 ## Expense lifecycle
 
-- **Edit** replaces the amount, payer, split, and shares, and recomputes shares with the rules above. Earlier shares are not kept.
-- **Delete** is permanent (hard delete). The Activity event keeps a snapshot of the title.
+- **Edit** replaces the amount, payer, split, and shares, and recomputes shares with the rules above. Earlier shares are not kept. An earlier Activity row keeps the own-cost amount it was written with.
+- **Delete** is permanent (hard delete). The Activity event keeps a snapshot of the title, and of the payer, amount, and the payer's share, taken while the expense still exists.
 - A member added after an expense was saved is not on that expense.
 - Removing a member never rewrites expenses, except under *wipe*.
 
