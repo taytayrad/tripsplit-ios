@@ -35,11 +35,10 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
   | You paid; Alex and Jordan only | +100 | You get back $100 |
   | Alex paid; you and Alex equally | −50 | You owe $50 |
   | Alex paid; you not in the split | 0 | none |
+- **payment_deleted dollar line** is the reversal of that payment for you, from your delta on the event: delta > 0 → "You get back $X" (a payment you received was removed; your net went back up); delta < 0 → "You owe $X" (a payment you made was removed; your net went back down); otherwise no dollar line.
 - **No push when:** the trip's name or dates change; someone leaves; a payment doesn't include you; or as a reminder to settle (PRD › Notifications).
 - **Timestamps:** today shows the time only; earlier days show a short date and time.
 - **Taps:** an expense row opens the expense (edit), a trip row opens the trip, and a `trip_deleted` row asks "Do you want to undelete this trip?"
 - **Search** filters by person, expense title, or trip name.
 
-## Open
-
-- `payment_deleted` and `member_removed` statement copy is proposed.
+The `payment_deleted` and `member_removed` sentences above are the ones Activity uses (PRD › Prototype decisions › Activity wording).
