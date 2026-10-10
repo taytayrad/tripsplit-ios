@@ -304,6 +304,10 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 
 - **Split values start with the cursor at the end:** tapping any value on the Split screen (Exact, Percent or Shares, adding or editing) puts the cursor after the value, so it can be deleted or changed without moving the cursor first.
 
+- **Settled trips show below their button:** on Trips, "Show settled trips" sits under the trips still in play, and the settled trips appear below it (newest first), so the list you were looking at doesn't reshuffle. "Hide settled trips" folds them away again. "Add trip" sits directly under the trips in play, above "Show settled trips", so it never ends up below the settled ones.
+- **Trips list details (Impeccable review, 2026-10-10):** "Add trip" is a short card with a dashed outline in the secondary text color, so it stays visible. The link counts what it hides ("Show 2 settled trips"), and settled trips show as compact rows (stamp, name, "Settled"), not full cards. When every trip is settled, the list shows the empty state with "You’re all settled", Add Trip, and "Show 2 settled trips".
+- **The header's add button is spelled out:** "+ Add expense", or "+ Add trip" when you have no trips. A bare "+" over a list of trips read as "new trip".
+
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.
 

@@ -36,18 +36,31 @@ struct MainHeader: ToolbarContent {
     }
 }
 
-/// Tap adds an expense, or starts a trip when you have none (Figma Main Header).
+/// "+ Add expense", or "+ Add trip" when you have none (Figma Main Header). Spelled out: a bare "+" over a list of
+/// trips reads as "new trip".
 private struct AddButton: View {
     let onAddTrip: () -> Void
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        let noTrips = app.trips.isEmpty
         Button {
-            if app.trips.isEmpty { onAddTrip() } else { app.addExpense() }
+            if noTrips { onAddTrip() } else { app.addExpense() }
         } label: {
-            Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(.white, Color.tsTintFill)
+            // An HStack, not a Label: iOS 26 toolbars show a Label's icon only, whatever its label style.
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "plus")
+                Text(noTrips ? "Add trip" : "Add expense")
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.leading, 14).padding(.trailing, 16).frame(minHeight: 44)  // the height of the glass Settle up button
+            // Drawn here, not with .borderedProminent: iOS 26 toolbars restyle button fills (white text on glass).
+            .background(Color.tsTintFill, in: .capsule)
+            .contentShape(.capsule)
         }
-        .accessibilityLabel("Add")
+        .buttonStyle(.plain)
+        .accessibilityLabel(noTrips ? "Add trip" : "Add expense")
     }
 }
 
