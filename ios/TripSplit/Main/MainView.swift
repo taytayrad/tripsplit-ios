@@ -7,7 +7,7 @@ struct MainView: View {
         @Bindable var app = app
         TabView {
             TripsView().tabItem { Label("Trips", systemImage: "suitcase") }
-            PlaceholderTab(title: "Activity").tabItem { Label("Activity", systemImage: "clock") }  // Phase 5
+            ActivityView().tabItem { Label("Activity", systemImage: "clock") }
             ProfileTab().tabItem { Label("Profile", systemImage: "person.crop.circle") }           // Phase 5 fills this in
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
@@ -26,9 +26,17 @@ struct MainHeader: ToolbarContent {
         ToolbarItem(placement: .topBarLeading) { Button("Settle up", action: onSettleUp) }
         if #available(iOS 26, *) {
             ToolbarItem(placement: .topBarTrailing) { add }.sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .principal) { noInlineTitle }.sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .topBarTrailing) { add }
+            ToolbarItem(placement: .principal) { noInlineTitle }
         }
+    }
+
+    /// Scrolled down, the large title would shrink into the bar, off center between Settle up and the wider Add
+    /// button. The tab bar already says where you are, so the bar stays empty; the large title still shows at the top.
+    private var noInlineTitle: some View {
+        Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
     }
 
     private var add: some View {
@@ -61,16 +69,6 @@ private struct AddButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(noTrips ? "Add trip" : "Add expense")
-    }
-}
-
-struct PlaceholderTab: View {
-    let title: String
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView("Coming soon", systemImage: "clock", description: Text("\(title) arrives in a later build."))
-                .navigationTitle(title)
-        }
     }
 }
 
