@@ -32,7 +32,7 @@ enum ActivityCopy {
         /// Who was removed. When nil, a subject equal to the actor's name is a leave.
         var removedId: UUID? = nil
         var deltas: [UUID: Int] = [:]
-        /// Set from the expense row when it still exists. A hard-deleted expense leaves these nil.
+        /// Snapshotted on the event. The live expense is not a source: a later edit would rewrite this row.
         var expensePayerId: UUID? = nil
         var expenseAmountCents: Int? = nil
         /// The viewer's share. Nil when they were not in the split.

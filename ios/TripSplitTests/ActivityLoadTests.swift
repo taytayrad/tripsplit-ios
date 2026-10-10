@@ -27,9 +27,11 @@ struct ActivityLoadTests {
 
     static func json(id: String, kind: String, actor: UUID, actorName: String, tripName: String,
                       subject: String? = nil, deltas: String = "{}", expenseId: UUID? = nil,
+                      expensePayer: UUID? = nil, expenseAmount: Int? = nil, expensePayerShare: Int? = nil,
                       payment: String? = nil, tripDeletedAt: String? = nil,
                       createdAt: String = "2026-10-10T15:00:00Z") -> String {
         func quoted(_ value: String?) -> String { value.map { "\"\($0)\"" } ?? "null" }
+        func cents(_ value: Int?) -> String { value.map(String.init) ?? "null" }
         return [
             "{\"id\":\"\(id)\"",
             "\"trip_id\":\"\(trip.uuidString.lowercased())\"",
@@ -38,6 +40,9 @@ struct ActivityLoadTests {
             "\"subject\":\(quoted(subject))",
             "\"deltas\":\(deltas)",
             "\"expense_id\":\(quoted(expenseId?.uuidString.lowercased()))",
+            "\"expense_payer_id\":\(quoted(expensePayer?.uuidString.lowercased()))",
+            "\"expense_amount_cents\":\(cents(expenseAmount))",
+            "\"expense_payer_share_cents\":\(cents(expensePayerShare))",
             "\"created_at\":\"\(createdAt)\"",
             "\"actor\":{\"display_name\":\"\(actorName)\"}",
             "\"trips\":{\"name\":\"\(tripName)\",\"stamp\":\(stamp),\"deleted_at\":\(quoted(tripDeletedAt))}",
@@ -171,7 +176,7 @@ struct ActivityLoadTests {
     }
 
     @Test func hardDeletedExpenseKeepsTheTitle() throws {
-        // The expense id is on the event, and the expense row is gone, so there is no "You paid" line.
+        // No snapshot on this row, so there is no own-cost line. The title is still the event's subject.
         let json = Self.json(id: "00000000-0000-0000-0000-000000000121", kind: "expense_added",
                              actor: Self.you, actorName: "Alex Kim", tripName: "Night Market", subject: "Lyft",
                              expenseId: Self.lyft)
@@ -182,23 +187,43 @@ struct ActivityLoadTests {
         #expect(line.dollarLine == nil)
     }
 
-    @Test func liveExpenseSuppliesYourOwnCost() throws {
-        let json = Self.json(id: "00000000-0000-0000-0000-000000000122", kind: "expense_added",
+    /// Adding a $100 expense you paid entirely yourself, then editing it to $200, must leave the original
+    /// row at "You paid $100". Both rows are formatted against the expense's current $200 version.
+    @Test func laterEditDoesNotRewriteAnEarlierOwnCostLine() throws {
+        let live = Expense(id: Self.lyft, tripId: Self.trip, description: "Lyft", icon: .rideshare,
+                           amountCents: 20000, payerId: Self.you, splitKind: .equal, spentOn: "2026-10-10",
+                           createdBy: Self.you, createdAt: Date(timeIntervalSince1970: 0),
+                           expenseShares: [ExpenseShare(userId: Self.you, shareCents: 20000, splitInput: nil)])
+        let added = try decode(Self.json(id: "00000000-0000-0000-0000-000000000122", kind: "expense_added",
+                                         actor: Self.you, actorName: "Alex Kim", tripName: "Night Market", subject: "Lyft",
+                                         expenseId: Self.lyft, expensePayer: Self.you, expenseAmount: 10000, expensePayerShare: 10000))
+        let updated = try decode(Self.json(id: "00000000-0000-0000-0000-000000000123", kind: "expense_updated",
+                                           actor: Self.you, actorName: "Alex Kim", tripName: "Night Market", subject: "Lyft",
+                                           expenseId: Self.lyft, expensePayer: Self.you, expenseAmount: 20000, expensePayerShare: 20000))
+        let addedLine = added.statement(viewer: Self.you, viewerName: "", expenses: [live])
+        let updatedLine = updated.statement(viewer: Self.you, viewerName: "", expenses: [live])
+        #expect(addedLine.statement == "You added \"Lyft\" in \"Night Market\"")
+        #expect(addedLine.dollarLine == "You paid $100")
+        #expect(updatedLine.dollarLine == "You paid $200")
+    }
+
+    @Test func ownCostWithoutASnapshotDoesNotUseTheLiveExpense() throws {
+        let json = Self.json(id: "00000000-0000-0000-0000-000000000124", kind: "expense_added",
                              actor: Self.you, actorName: "Alex Kim", tripName: "Night Market", subject: "Lyft",
                              expenseId: Self.lyft)
-        let event = try decode(json)
-        let expense = Expense(id: Self.lyft, tripId: Self.trip, description: "Lyft", icon: .rideshare,
-                              amountCents: 10000, payerId: Self.you, splitKind: .equal, spentOn: "2026-10-10",
-                              createdBy: Self.you, createdAt: Date(timeIntervalSince1970: 0),
-                              expenseShares: [ExpenseShare(userId: Self.you, shareCents: 10000, splitInput: nil)])
-        let line = event.statement(viewer: Self.you, viewerName: "", expenses: [expense])
+        let live = Expense(id: Self.lyft, tripId: Self.trip, description: "Lyft", icon: .rideshare,
+                           amountCents: 10000, payerId: Self.you, splitKind: .equal, spentOn: "2026-10-10",
+                           createdBy: Self.you, createdAt: Date(timeIntervalSince1970: 0),
+                           expenseShares: [ExpenseShare(userId: Self.you, shareCents: 10000, splitInput: nil)])
+        let line = try decode(json).statement(viewer: Self.you, viewerName: "", expenses: [live])
         #expect(line.statement == "You added \"Lyft\" in \"Night Market\"")
-        #expect(line.dollarLine == "You paid $100")
+        #expect(line.dollarLine == nil)
     }
 
     @Test func columnsKeepTheFieldsAStatementNeeds() {
         let columns = ActivityQuery.columns
-        for field in ["kind", "actor_id", "subject", "deltas", "expense_id", "stamp", "payer_id", "payee_id", "amount_cents", "deleted_at"] {
+        for field in ["kind", "actor_id", "subject", "deltas", "expense_id", "expense_payer_id", "expense_amount_cents",
+                      "expense_payer_share_cents", "stamp", "payer_id", "payee_id", "amount_cents", "deleted_at"] {
             #expect(columns.contains(field))
         }
         #expect(!columns.contains("is.null"))

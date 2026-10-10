@@ -25,7 +25,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 - **Expense dollar line** (added, updated, deleted), from your delta:
   - delta < 0 → "You owe $X"
   - delta > 0 → "You get back $X"
-  - delta = 0 and you paid with your share equal to the whole amount → "You paid $X" (your own cost)
+  - delta = 0 and you paid with your share equal to the whole amount → "You paid $X" (your own cost). $X is the amount stored on the event when it was written. A later edit of the expense does not change an earlier row. An event without that snapshot has no dollar line.
   - delta = 0 otherwise → no dollar line
 
   | Lyft $100 | Delta | Line |

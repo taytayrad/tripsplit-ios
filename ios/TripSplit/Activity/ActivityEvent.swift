@@ -5,6 +5,7 @@ import Foundation
 enum ActivityQuery {
     static let columns = [
         "id", "trip_id", "kind", "actor_id", "subject", "deltas", "expense_id", "created_at",
+        "expense_payer_id", "expense_amount_cents", "expense_payer_share_cents",
         "actor:profiles!activity_events_actor_id_fkey(display_name)",
         "trips!activity_events_trip_id_fkey(name, stamp, deleted_at)",
         "payments(payer_id, payee_id, amount_cents, deleted_at, payer:profiles!payments_payer_id_fkey(display_name), payee:profiles!payments_payee_id_fkey(display_name))",
@@ -35,23 +36,28 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
     let subject: String?
     let deltas: [UUID: Int]
     let expenseId: UUID?
+    /// Payer, amount, and the payer's share at the moment this event was written. Nil on older rows.
+    let expensePayerId: UUID?
+    let expenseAmountCents: Int?
+    let expensePayerShareCents: Int?
     let createdAt: Date
     let payment: PaymentParty?
 
     var tripDeleted: Bool { tripDeletedAt != nil }
 
+    /// `expenses` is the live list. Own-cost lines do not read it: a later edit would rewrite an earlier row.
     func statement(viewer: UUID, viewerName: String, expenses: [Expense]) -> ActivityCopy.Result {
-        ActivityCopy.line(facts(viewer: viewer, viewerName: viewerName, expenses: expenses),
-                          viewer: viewer, viewerName: viewerName)
+        _ = expenses
+        return ActivityCopy.line(facts(viewer: viewer), viewer: viewer, viewerName: viewerName)
     }
 
-    private func facts(viewer: UUID, viewerName: String, expenses: [Expense]) -> ActivityCopy.Event {
-        let expense = expenseId.flatMap { id in expenses.first { $0.id == id } }
+    private func facts(viewer: UUID) -> ActivityCopy.Event {
+        // The viewer's own-cost share is the payer's share only when the viewer paid.
+        let viewerShare = expensePayerId == viewer ? expensePayerShareCents : nil
         return ActivityCopy.Event(
             kind: kind, actorId: actorId, actorName: actorName, tripName: tripName, subject: subject,
             deltas: deltas,
-            expensePayerId: expense?.payerId, expenseAmountCents: expense?.amountCents,
-            viewerShareCents: expense?.share(of: viewer),
+            expensePayerId: expensePayerId, expenseAmountCents: expenseAmountCents, viewerShareCents: viewerShare,
             payerId: payment?.payerId, payeeId: payment?.payeeId,
             payerName: payment?.payerName, payeeName: payment?.payeeName, amountCents: payment?.amountCents)
     }
@@ -84,6 +90,8 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, kind, subject, deltas, actor, trips, payments
         case tripId = "trip_id", actorId = "actor_id", expenseId = "expense_id", createdAt = "created_at"
+        case expensePayerId = "expense_payer_id", expenseAmountCents = "expense_amount_cents"
+        case expensePayerShareCents = "expense_payer_share_cents"
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +102,9 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
         actorId = try c.decode(UUID.self, forKey: .actorId)
         subject = try c.decodeIfPresent(String.self, forKey: .subject)
         expenseId = try c.decodeIfPresent(UUID.self, forKey: .expenseId)
+        expensePayerId = try c.decodeIfPresent(UUID.self, forKey: .expensePayerId)
+        expenseAmountCents = try c.decodeIfPresent(Int.self, forKey: .expenseAmountCents)
+        expensePayerShareCents = try c.decodeIfPresent(Int.self, forKey: .expensePayerShareCents)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         actorName = try c.decodeIfPresent(NameRow.self, forKey: .actor)?.displayName ?? ""
         let trip = try c.decode(TripRow.self, forKey: .trips)
