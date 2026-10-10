@@ -310,8 +310,15 @@ final class AppModel {
         await refresh()
     }
 
+    /// Deletes the trip. The caller refreshes after closing the trip's screens, so the trip doesn't vanish
+    /// from under them mid-animation.
     func deleteTrip(_ id: UUID) async throws {
         try await db.rpc("delete_trip", params: ["p_trip": id]).run()
+    }
+
+    /// Brings a deleted trip back with the expenses and payments it had when it was deleted (money-rules M7).
+    func undeleteTrip(_ id: UUID) async throws {
+        try await db.rpc("undelete_trip", params: ["p_trip": id]).run()
         await refresh()
     }
 
@@ -326,10 +333,9 @@ final class AppModel {
         await refresh()
     }
 
-    /// Leaves the trip; only at $0.
+    /// Leaves the trip; only at $0. Like `deleteTrip`, the caller refreshes after closing the trip's screens.
     func leaveTrip(_ trip: UUID) async throws {
         try await db.rpc("leave_trip", params: ["p_trip": trip]).run()
-        await refresh()
     }
 
     // MARK: Invites

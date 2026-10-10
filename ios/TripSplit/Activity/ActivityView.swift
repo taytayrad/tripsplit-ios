@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The Activity tab (Figma Activity › Feed [12b]): your activity, newest first, including a deleted trip's rows.
 /// Search filters it by person, expense, or trip. Tapping an expense row opens its details, and a trip or member
-/// row opens the trip (TRIP-20). The undelete alert is TRIP-21; an empty feed stays plain until Phase 6.
+/// row opens the trip (TRIP-20). A deleted trip's row asks to undelete it (TRIP-21). An empty feed stays plain
+/// until Phase 6.
 struct ActivityView: View {
     @Environment(AppModel.self) private var app
     @State private var addingTrip = false
@@ -10,6 +11,8 @@ struct ActivityView: View {
     @State private var path: [UUID] = []
     @State private var query = ""
     @State private var openExpense: UUID?
+    /// The deleted trip whose undelete alert is showing (Figma Activity › Undelete alert [12c]).
+    @State private var undeleting: ActivityEvent?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -18,7 +21,7 @@ struct ActivityView: View {
                 Group {
                     if let target = event.target(expenses: expenseIds, trips: tripIds) {
                         // Tinted primary: a List button otherwise draws its label in the accent blue. Keeps the tap highlight.
-                        Button { open(target) } label: { ActivityRow(event: event, line: line(event)) }
+                        Button { open(target, event) } label: { ActivityRow(event: event, line: line(event)) }
                             .tint(.primary)
                     } else {
                         ActivityRow(event: event, line: line(event))
@@ -41,6 +44,17 @@ struct ActivityView: View {
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
             .navigationDestination(item: $openExpense) { ExpenseDetailView(expenseId: $0) }
+            .alert("Do you want to undelete this trip?", isPresented: .init(get: { undeleting != nil }, set: { if !$0 { undeleting = nil } }),
+                   presenting: undeleting) { event in
+                Button("Cancel", role: .cancel) {}
+                Button("Undelete") {
+                    Task {
+                        do { try await app.undeleteTrip(event.tripId) }
+                        catch { app.error = AppModel.describe("Couldn’t undelete the trip. Check your connection and try again.", error) }
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+            } message: { event in Text("“\(event.tripName)” and its expenses will count again.") }
             .refreshable { await app.refresh() }
             .sheet(isPresented: $addingTrip) {
                 TripFormView(mode: .add) { created in path = [created.id] }
@@ -48,10 +62,11 @@ struct ActivityView: View {
         }
     }
 
-    private func open(_ target: ActivityEvent.Target) {
+    private func open(_ target: ActivityEvent.Target, _ event: ActivityEvent) {
         switch target {
         case .expense(let id): openExpense = id
         case .trip(let id): path.append(id)
+        case .undelete: undeleting = event
         }
     }
 
