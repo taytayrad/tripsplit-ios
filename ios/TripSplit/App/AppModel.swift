@@ -10,7 +10,12 @@ final class AppModel {
     enum Stage: Equatable { case loading, signedOut, notifications, payMethods, ready }
 
     var stage: Stage = .loading
-    var profile: Profile?
+    /// Your profile as shown. Autosaves change it first; `profileSync` keeps it consistent with the server.
+    var profile: Profile? {
+        get { profileSync.shown }
+        set { profileSync.shown = newValue }
+    }
+    private var profileSync = ProfileSync()
     var trips: [Trip] = []
     /// Every suggested payment on your trips. Tickets, member amounts, and "Everyone's settled" come from these.
     var settlements: [Settlement] = []
@@ -69,7 +74,7 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
+                profileSync = ProfileSync(); trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
@@ -143,28 +148,38 @@ final class AppModel {
     }
 
     /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
-    /// `profiles` columns you may update (docs/permissions.md).
-    /// Saves run one after another, in the order they were made, so a quick second tap can't land first and leave
-    /// the earlier choice saved. Only the last queued save reloads, so an older save's reload can't undo a newer
-    /// change on screen (PR #35 review).
+    /// `profiles` columns you may update (docs/permissions.md). Show the change first (set `profile`), then call this.
+    /// Saves run one after another, in the order they were made, so the latest choice is the one saved. A failure
+    /// puts the server's confirmed values back on screen when it's the newest save (`ProfileSync`).
     func updateProfile(_ fields: [String: AnyJSON]) async throws {
         guard let id = userId else { return }
+        let generation = profileSync.begin()
         let previous = profileSave
         let save = Task {
             _ = await previous?.result
             try await db.from("profiles").update(fields).eq("id", value: id).run()
         }
         profileSave = save
-        try await save.value
-        if profileSave == save { await loadProfile() }
+        do { try await save.value } catch {
+            // Only the newest save reports a failure. An older one is overtaken: retrying it would put back a choice
+            // you've since changed, and the newer save's reload shows what the server has.
+            guard generation == profileSync.generation else { return }
+            profileSync.failed(generation)
+            throw error
+        }
+        profileSync.saved(fields)
+        if generation == profileSync.generation { await loadProfile() }
     }
 
     // MARK: Data
 
     func loadProfile() async {
         guard let id = userId else { return }
-        // A failed load (offline) keeps the profile you had, rather than blanking it.
-        if let loaded: Profile = try? await db.from("profiles").select().eq("id", value: id).single().value() { profile = loaded }
+        let startedAt = profileSync.generation
+        // A failed load (offline) keeps the profile you had; a load overtaken by a newer save is dropped.
+        if let loaded: Profile = try? await db.from("profiles").select().eq("id", value: id).single().value() {
+            profileSync.loaded(loaded, startedAt: startedAt)
+        }
     }
 
     func refresh() async {
@@ -198,7 +213,10 @@ final class AppModel {
                     .order("created_at", ascending: false).order("id").range(from: from, to: to)
             }
             let tripNets: [TripNet]
-            (trips, settlements, tripNets, profile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
+            let loadedProfile: Profile?
+            let profileStartedAt = profileSync.generation
+            (trips, settlements, tripNets, loadedProfile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
+            if let loadedProfile { profileSync.loaded(loadedProfile, startedAt: profileStartedAt) }
             activity.removeAll { $0.kind == .unknown }
             nets = Dictionary(tripNets.map { ($0.tripId, $0.cents) }, uniquingKeysWith: +)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }

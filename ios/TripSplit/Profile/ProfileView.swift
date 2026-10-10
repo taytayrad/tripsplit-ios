@@ -105,33 +105,24 @@ struct ProfileView: View {
         permission = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
-    /// `apply` shows the change at once; if the save fails, `undo` puts the old value back (no reload, which would
-    /// fail offline too) and Retry applies it again.
-    private func save(_ fields: [String: AnyJSON], apply: (() -> Void)? = nil, undo: (() -> Void)? = nil) {
+    /// `apply` shows the change at once. If the save fails, AppModel puts the confirmed value back (`ProfileSync`),
+    /// and Retry applies the change again.
+    private func save(_ fields: [String: AnyJSON], apply: (() -> Void)? = nil) {
         apply?()
-        Task { await attempt(fields, apply: apply, undo: undo) }
-    }
-
-    private func attempt(_ fields: [String: AnyJSON], apply: (() -> Void)?, undo: (() -> Void)?) async {
-        do { try await app.updateProfile(fields) }
-        catch {
-            undo?()
-            failedSave = { apply?(); await attempt(fields, apply: apply, undo: undo) }
+        Task {
+            do { try await app.updateProfile(fields) }
+            catch { failedSave = { save(fields, apply: apply) } }
         }
     }
 
     private func payMethod(_ key: WritableKeyPath<Profile, Bool>, _ column: String) -> Binding<Bool> {
-        .init(get: { app.profile?[keyPath: key] ?? false }, set: { new in
-            let old = app.profile?[keyPath: key] ?? false
-            save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }, undo: { app.profile?[keyPath: key] = old })
-        })
+        .init(get: { app.profile?[keyPath: key] ?? false },
+              set: { new in save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }) })
     }
 
     private func notify(_ key: WritableKeyPath<Profile, Bool?>, _ column: String) -> Binding<Bool> {
-        .init(get: { app.profile?[keyPath: key] ?? true }, set: { new in
-            let old = app.profile?[keyPath: key] ?? true
-            save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }, undo: { app.profile?[keyPath: key] = old })
-        })
+        .init(get: { app.profile?[keyPath: key] ?? true },
+              set: { new in save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }) })
     }
 }
 
