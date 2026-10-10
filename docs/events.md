@@ -39,7 +39,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 - **payment_deleted dollar line** is the reversal of that payment for you, from your delta on the event: delta > 0 → "You get back $X" (a payment you received was removed; your net went back up); delta < 0 → "You owe $X" (a payment you made was removed; your net went back down); otherwise no dollar line.
 - **No push when:** the trip's name or dates change; someone leaves; a payment doesn't include you; or as a reminder to settle (PRD › Notifications).
 - **Timestamps:** today shows the time only; earlier days show a short date and time.
-- **Taps:** an expense row opens the expense (edit), a trip row opens the trip, and a `trip_deleted` row asks "Do you want to undelete this trip?"
+- **Taps:** an expense row (added, updated, deleted, restored) opens Expense details, in its deleted state when the expense is deleted; an expense deleted before TRIP-27 is gone, so its row does nothing. A trip or member row (`trip_created`, `trip_undeleted`, `member_joined`, `member_removed`) opens the trip when you can still see it. Payment rows open nothing. A `trip_deleted` row asks "Do you want to undelete this trip?" (TRIP-21).
 - **Search** filters by person, expense title, or trip name.
 
 The `payment_deleted` and `member_removed` sentences above are the ones Activity uses (PRD › Prototype decisions › Activity wording).
