@@ -8,10 +8,29 @@ struct Profile: Codable, Identifiable, Hashable {
     var venmoUsername: String?
     var hasZelle: Bool
     var hasAppleCash: Bool
+    /// Push preferences; only loaded for your own profile (nil reads as on, the column default).
+    var notifyPaid: Bool? = nil
+    var notifyExpense: Bool? = nil
+    var notifyJoin: Bool? = nil
+    var notifyTripDeleted: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, displayName = "display_name", venmoUsername = "venmo_username"
         case hasZelle = "has_zelle", hasAppleCash = "has_apple_cash"
+        case notifyPaid = "notify_paid", notifyExpense = "notify_expense", notifyJoin = "notify_join"
+        case notifyTripDeleted = "notify_trip_deleted"
+    }
+}
+
+/// A Venmo username as people type it: "@Taylor-R " is "Taylor-R". Valid is 5–30 letters, numbers, - or _.
+enum VenmoName {
+    static func clean(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+            .filter { !$0.isWhitespace }
+    }
+
+    static func isValid(_ name: String) -> Bool {
+        (5...30).contains(name.count) && name.allSatisfy { ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "-" || $0 == "_" }
     }
 }
 

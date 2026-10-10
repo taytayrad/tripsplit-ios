@@ -4,7 +4,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 
 **Delta** = the event's change to a person's trip net, snapshotted at write time (`activity_events.deltas`).
 
-| Kind | Activity statement (pattern) | Dollar line for you | Push to | Preference |
+| Kind | Activity statement (pattern) | Dollar line for you | Push to | Preference (Profile switch) |
 |---|---|---|---|---|
 | `trip_created` | You created the trip "Coast Road" | none | nobody | — |
 | `member_joined` | Alex joined "Coast Road" | none | every other active member | `notify_join` |
@@ -43,3 +43,5 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 - **Search** filters by person, expense title, or trip name.
 
 The `payment_deleted` and `member_removed` sentences above are the ones Activity uses (PRD › Prototype decisions › Activity wording).
+
+Profile switch for each preference: `notify_paid` "Payments with you", `notify_expense` "Expenses that affect you", `notify_join` "Someone joins your trip", `notify_trip_deleted` "Someone deletes or restores a trip".

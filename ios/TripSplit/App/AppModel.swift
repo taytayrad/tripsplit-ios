@@ -123,7 +123,7 @@ final class AppModel {
 
     func savePayMethods(venmo: String?, zelle: Bool, appleCash: Bool) async {
         guard let id = userId else { return }
-        let venmo = venmo?.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        let venmo = venmo.map(VenmoName.clean)
         do {
             try await db.from("profiles").update(PayMethodsUpdate(venmo_username: venmo?.isEmpty == false ? venmo : nil,
                                                         has_zelle: zelle, has_apple_cash: appleCash))
@@ -138,6 +138,14 @@ final class AppModel {
         stage = .ready
         await refresh()
         await joinPendingInvite()
+    }
+
+    /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
+    /// `profiles` columns you may update (docs/permissions.md).
+    func updateProfile(_ fields: [String: AnyJSON]) async throws {
+        guard let id = userId else { return }
+        try await db.from("profiles").update(fields).eq("id", value: id).run()
+        await loadProfile()
     }
 
     // MARK: Data
@@ -160,7 +168,7 @@ final class AppModel {
                 try self.db.rpc("my_trip_nets").order("trip_id").range(from: from, to: to)
             }
             // Your own row too: onboarding and Profile change your pay methods, which the Payment page reads.
-            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
+            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash, notify_paid, notify_expense, notify_join, notify_trip_deleted")
                 .eq("id", value: userId ?? UUID()).single().value()
             async let p: [Profile] = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
                 .neq("id", value: userId ?? UUID()).value()

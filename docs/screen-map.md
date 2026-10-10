@@ -10,7 +10,7 @@ flowchart LR
     subgraph Main["Tabs"]
         trips["Trips [04, 11]"]
         activity["Activity [12]"]
-        profile["Profile [21]"]
+        profile["Profile [F1, F2]"]
     end
     paym -->|creator| trips
     paym -->|from invite| welcome["Added to trip [I04]"]
@@ -41,7 +41,10 @@ flowchart LR
     edit -- "remove a settled member" --> removeok["Remove confirm [R2]"]
 
     activity -- "deleted trip row" --> undelete["Undelete alert [12c]"]
-    profile -- "Sign out" --> signout["Sign out confirm [21b]"]
+    profile -- name --> name["Name [F4]"]
+    profile -- Venmo --> venmo["Venmo [F3]"]
+    paym -- Venmo --> venmo
+    profile -- "Sign out" --> signout["Sign out confirm [F5]"]
 ```
 
 ## Figma sections
@@ -60,7 +63,7 @@ Flow (current build) page:
 | [Activity](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3495) | Feed, undelete alert |
 | [Balance](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3497) | Your Balance sheet. **Retired (TRIP-13)**; don't build. |
 | [Person & Payments](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3499) | Person screens, log sheets, settled. **Retired (TRIP-13)**; the Log Payment Sheet component is still used. |
-| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | Profile, sign out |
+| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | **Retired (TRIP-22)**; build from Flow · Net model › [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=297-1283) (F1–F8) |
 | [Prototype only](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3503) | Stand-ins. **Don't build.** |
 
 ## Presentation
