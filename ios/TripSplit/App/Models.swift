@@ -19,6 +19,15 @@ struct PersonName: Codable, Hashable {
     let id: UUID
     let displayName: String
     enum CodingKeys: String, CodingKey { case id, displayName = "display_name" }
+
+    /// How a stored display name is shown: the first word, then the last word's initial.
+    /// "Atish Dey" → "Atish D."; "Atish" stays "Atish". The stored name is unchanged.
+    static func shown(_ displayName: String) -> String {
+        let words = displayName.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let first = words.first else { return "" }
+        guard let last = words.dropFirst().last, let initial = last.first else { return first }
+        return "\(first) \(initial)."
+    }
 }
 
 struct Member: Codable, Hashable {

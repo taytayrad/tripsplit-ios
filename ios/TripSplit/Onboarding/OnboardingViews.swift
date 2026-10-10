@@ -17,7 +17,7 @@ struct SignInView: View {
             }
             Spacer()
             if let invite = app.invitePreview {
-                Text("\(invite.inviterName) invited you to “\(invite.tripName)”")
+                Text("\(PersonName.shown(invite.inviterName)) invited you to “\(invite.tripName)”")
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
                     .multilineTextAlignment(.center)
             }

@@ -150,7 +150,9 @@ struct ExpenseFormView: View {
 
     private func name(of user: UUID?) -> String {
         guard let user else { return "" }
-        return user == app.userId ? "You" : members.first { $0.userId == user }?.profiles.displayName ?? app.people.first { $0.id == user }?.displayName ?? "Someone"
+        if user == app.userId { return "You" }
+        let stored = members.first { $0.userId == user }?.profiles.displayName ?? app.people.first { $0.id == user }?.displayName
+        return stored.map(PersonName.shown) ?? "Someone"
     }
 
     private func load() {
@@ -235,7 +237,7 @@ struct PaidByView: View {
                 ForEach(members, id: \.userId) { m in
                     Button { selected = m.userId; dismiss() } label: {
                         HStack {
-                            Text(m.userId == app.userId ? "You" : m.profiles.displayName).foregroundStyle(.primary)
+                            Text(m.userId == app.userId ? "You" : PersonName.shown(m.profiles.displayName)).foregroundStyle(.primary)
                             Spacer()
                             if m.userId == selected { Image(systemName: "checkmark").foregroundStyle(Color.tsTintFill) }
                         }
@@ -274,7 +276,7 @@ struct ExpenseRow: View {
     var body: some View {
         let youPaid = expense.payerId == app.userId
         let part = ExpenseLine.parts(amountCents: expense.amountCents, youPaid: youPaid, yourShareCents: expense.share(of: app.userId))
-        let payer = youPaid ? "You" : trip.tripMembers.first { $0.userId == expense.payerId }?.profiles.displayName ?? "Someone"
+        let payer = youPaid ? "You" : trip.tripMembers.first { $0.userId == expense.payerId }.map { PersonName.shown($0.profiles.displayName) } ?? "Someone"
         ExpenseRowLayout(symbol: expense.icon.symbol, title: expense.description,
                          caption: ExpenseLine.caption(payer: payer, amountCents: expense.amountCents, date: expense.date),
                          label: part?.label, cents: part?.cents,

@@ -62,7 +62,7 @@ struct SplitView: View {
     }
 
     @ViewBuilder private func row(for m: Member) -> some View {
-        let name = m.userId == app.userId ? "You" : m.profiles.displayName
+        let name = m.userId == app.userId ? "You" : PersonName.shown(m.profiles.displayName)
         switch kind {
         case .equal:
             CheckRow(title: name, isOn: .init(
