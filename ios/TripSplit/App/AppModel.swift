@@ -44,6 +44,8 @@ final class AppModel {
     private var realtime: RealtimeChannelV2?
     private var realtimeSubscriptions: [RealtimeSubscription] = []  // dropping a token removes its callback
     private var refreshTask: Task<Void, Never>?
+    /// The latest profile save; the next one waits for it.
+    private var profileSave: Task<Void, Error>?
 
     private let db = Backend.client
 
@@ -142,17 +144,27 @@ final class AppModel {
 
     /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
     /// `profiles` columns you may update (docs/permissions.md).
+    /// Saves run one after another, in the order they were made, so a quick second tap can't land first and leave
+    /// the earlier choice saved. Only the last queued save reloads, so an older save's reload can't undo a newer
+    /// change on screen (PR #35 review).
     func updateProfile(_ fields: [String: AnyJSON]) async throws {
         guard let id = userId else { return }
-        try await db.from("profiles").update(fields).eq("id", value: id).run()
-        await loadProfile()
+        let previous = profileSave
+        let save = Task {
+            _ = await previous?.result
+            try await db.from("profiles").update(fields).eq("id", value: id).run()
+        }
+        profileSave = save
+        try await save.value
+        if profileSave == save { await loadProfile() }
     }
 
     // MARK: Data
 
     func loadProfile() async {
         guard let id = userId else { return }
-        profile = try? await db.from("profiles").select().eq("id", value: id).single().value()
+        // A failed load (offline) keeps the profile you had, rather than blanking it.
+        if let loaded: Profile = try? await db.from("profiles").select().eq("id", value: id).single().value() { profile = loaded }
     }
 
     func refresh() async {
