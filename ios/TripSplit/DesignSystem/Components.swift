@@ -62,6 +62,7 @@ struct BalanceBlock: View {
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
             Text(Money.string(shownCents ?? cents))
                 .font(.system(size: 48, weight: .bold))
+                .lineLimit(1).minimumScaleFactor(0.5)  // never wraps beside the Pay button; a long amount shrinks
                 .foregroundStyle(cents < 0 ? Color.tsOwe : cents > 0 ? Color.tsOwed : Color.tsSecondary)
             if let detail {
                 Text(detail).font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)

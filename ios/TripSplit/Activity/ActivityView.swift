@@ -1,19 +1,29 @@
 import SwiftUI
 
 /// The Activity tab (Figma Activity › Feed [12b]): your activity, newest first, including a deleted trip's rows.
-/// Search filters it by person, expense, or trip. Taps and the undelete alert come later (TRIP-20 and on); an empty
-/// feed stays plain until Phase 6.
+/// Search filters it by person, expense, or trip. Tapping an expense row opens its details, and a trip or member
+/// row opens the trip (TRIP-20). The undelete alert is TRIP-21; an empty feed stays plain until Phase 6.
 struct ActivityView: View {
     @Environment(AppModel.self) private var app
     @State private var addingTrip = false
     @State private var settling = false
     @State private var path: [UUID] = []
     @State private var query = ""
+    @State private var openExpense: UUID?
 
     var body: some View {
         NavigationStack(path: $path) {
+            let expenseIds = Set(app.expenses.map(\.id)), tripIds = Set(app.trips.map(\.id))
             List(app.activity.filter { $0.matches(query) }) { event in
-                ActivityRow(event: event, line: line(event))
+                Group {
+                    if let target = event.target(expenses: expenseIds, trips: tripIds) {
+                        // Tinted primary: a List button otherwise draws its label in the accent blue. Keeps the tap highlight.
+                        Button { open(target) } label: { ActivityRow(event: event, line: line(event)) }
+                            .tint(.primary)
+                    } else {
+                        ActivityRow(event: event, line: line(event))
+                    }
+                }
                     .listRowInsets(EdgeInsets(top: Spacing.md, leading: Spacing.lg, bottom: Spacing.md, trailing: Spacing.lg))
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }  // Figma: separators run the row's full width
             }
@@ -30,10 +40,18 @@ struct ActivityView: View {
             .toolbar { MainHeader(onAddTrip: { addingTrip = true }, onSettleUp: { settling = true }) }
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
             .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
+            .navigationDestination(item: $openExpense) { ExpenseDetailView(expenseId: $0) }
             .refreshable { await app.refresh() }
             .sheet(isPresented: $addingTrip) {
                 TripFormView(mode: .add) { created in path = [created.id] }
             }
+        }
+    }
+
+    private func open(_ target: ActivityEvent.Target) {
+        switch target {
+        case .expense(let id): openExpense = id
+        case .trip(let id): path.append(id)
         }
     }
 
