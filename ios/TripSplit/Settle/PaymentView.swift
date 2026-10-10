@@ -78,13 +78,22 @@ struct PaymentView: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                Picker("Trip", selection: $trip) {
-                    if ticket.parts.count > 1 { Text("\(ticket.parts.count) Trips").tag(UUID?.none) }
-                    ForEach(ticket.parts, id: \.tripId) { part in
-                        Text(app.trip(part.tripId)?.name ?? "Trip").tag(UUID?.some(part.tripId))
+                // A Menu, not a menu Picker, so the row can show the trip's stamp; the menu itself lists plain names.
+                Menu {
+                    Picker("Trip", selection: $trip) {
+                        if ticket.parts.count > 1 { Text("\(ticket.parts.count) Trips").tag(UUID?.none) }
+                        ForEach(ticket.parts, id: \.tripId) { part in
+                            Text(app.trip(part.tripId)?.name ?? "Trip").tag(UUID?.some(part.tripId))
+                        }
                     }
+                } label: {
+                    // Colored here: a Menu label would otherwise take the accent color.
+                    LabeledContent {
+                        TripLabel(stamps: (trip.map { [$0] } ?? ticket.parts.map(\.tripId)).compactMap { app.trip($0)?.stamp },
+                                  text: trip.map { app.trip($0)?.name ?? "Trip" } ?? "\(ticket.parts.count) Trips")
+                            .foregroundStyle(Color.tsSecondary)
+                    } label: { Text("Trip").foregroundStyle(.primary) }
                 }
-                .pickerStyle(.menu)
                 .onChange(of: trip) { amountText = Money.plain(max) }
                 DatePicker("Date", selection: $date, in: ...Date.now, displayedComponents: .date)
                 NavigationLink {

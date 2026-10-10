@@ -22,6 +22,7 @@ struct ExpenseFormView: View {
     @State private var splitKind: SplitKind = .equal
     @State private var inputs: [UUID: Decimal] = [:]
     @State private var date = Date.now
+    @State private var pickingDate = false
     @State private var saving = false
     @State private var deleting: Expense?
     @State private var error: String?
@@ -102,14 +103,22 @@ struct ExpenseFormView: View {
                     Menu {
                         ForEach(app.trips) { t in Button(t.name) { tripId = t.id } }
                     } label: {
-                        FieldRow(text: trip?.name ?? "", chevron: true, dimmed: editing != nil)
+                        FieldRow(text: trip?.name ?? "", chevron: true, dimmed: editing != nil, stamp: trip?.stamp)
                     }
                     .disabled(editing != nil)  // moving an expense between trips would change two trips' balances
 
                     FieldLabel("DATE")
-                    // Looks like the Figma field ("Today ›"); the real picker sits on top, invisible, and takes the tap.
-                    FieldRow(text: ExpenseLine.day(date), chevron: true)
-                        .overlay { DatePicker("", selection: $date, displayedComponents: .date).labelsHidden().opacity(0.001) }
+                    // The Figma field ("Today ›"); the whole row opens the calendar. (An invisible DatePicker on top
+                    // never got the tap: UIKit skips views under 1% opacity.)
+                    Button { pickingDate = true } label: { FieldRow(text: ExpenseLine.day(date), chevron: true) }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $pickingDate) {
+                            DatePicker("Date", selection: $date, displayedComponents: .date)
+                                .datePickerStyle(.graphical).labelsHidden()
+                                .padding().frame(minWidth: 320)
+                                .presentationCompactAdaptation(.popover)
+                                .onChange(of: date) { pickingDate = false }
+                        }
 
                     if let expense = editing {
                         Spacer(minLength: Spacing.xxxl)
@@ -205,14 +214,15 @@ struct FieldLabel: View {
     var body: some View { Text(text).font(.footnote).foregroundStyle(Color.tsSecondary).padding(.top, Spacing.xs) }
 }
 
-/// The Figma Text Field component: white, 44 pt, optional chevron.
+/// The Figma Text Field component: white, 44 pt, optional chevron, and the trip's stamp on the Trip field.
 struct FieldRow: View {
     let text: String
     var chevron = false
     var dimmed = false
+    var stamp: StampSpec?
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            Text(text).foregroundStyle(dimmed ? Color.tsSecondary : Color.primary)
+            TripLabel(stamps: stamp.map { [$0] } ?? [], text: text).foregroundStyle(dimmed ? Color.tsSecondary : Color.primary)
             Spacer()
             if chevron { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.tsSecondary) }
         }
