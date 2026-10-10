@@ -302,6 +302,8 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Expense row caption names the full amount (supersedes "It does not show the full expense amount"):** the caption under an expense's title is "{Name} paid $X" or "You paid $X", then the day ("Alex paid $120 · Oct 3"), where $X is the whole expense. The amount on the right is still only your part, so you can see how it was split. Applies wherever Expense Row appears (trip and person screens).
 - **Person screen lines use Expense Row:** each expense on a person's screen has its icon, title, caption, and "You owe" or "You lent" with only the amount between the two of you (your share when they paid, their share when you paid). Payments use the same row with a transfer icon, "You paid" or "Alex paid you", the method and day as the caption ("Venmo · Today"; a recorded payment shows only the day), and a gray amount with no label. Tapping an expense opens its edit form, as on the trip (not on a trip you were removed from, which you can't edit). When an expense is entirely your own cost, its right side and caption both read "You paid $X"; that repeat is accepted for now.
 
+- **Split values start with the cursor at the end:** tapping any value on the Split screen (Exact, Percent or Shares, adding or editing) puts the cursor after the value, so it can be deleted or changed without moving the cursor first.
+
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.
 

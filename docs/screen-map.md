@@ -82,4 +82,4 @@ Sheets and alerts in Figma are drawn as full frames with a dimmed copy of the sc
 
 The **Color**, **Spacing**, **Radius**, and **Stamp** variable collections carry SwiftUI code syntax (Dev Mode shows `Color.tsOwe`, `Spacing.lg`, and so on). Text styles map to Dynamic Type styles in their descriptions. Native controls (tab bar, segmented control, switch, keyboard) come from the iOS 26 kit. Use the system versions, not custom ones.
 
-Net model components: **Member Ticket** (Money Rows page; Kind = You owe / You lent / Settled, with a Two trips switch) and **Route** (Payments page, formerly Pay Bar). **Deprecated** (retired in TRIP-13; delete from Figma): Balance Chip, Person Row, Pay Bar. Main Header has no chip.
+Net model components: **Member Ticket** (Money Rows page; Kind = You owe / You lent / Settled, with Two trips and More trips switches for a person across trips) and **Route** (Payments page, formerly Pay Bar). Balance Chip, Person Row and Pay Bar were deleted with TRIP-13; the retired frames on the Flow (current build) page keep detached copies. Main Header is Settle up (left) and Add (right).
