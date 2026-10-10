@@ -1,24 +1,29 @@
 import SwiftUI
 
 /// The Activity tab (Figma Activity › Feed [12b]): your activity, newest first, including a deleted trip's rows.
-/// Search, taps, and the undelete alert come later (TRIP-19 and on); an empty feed stays plain until Phase 6.
+/// Search filters it by person, expense, or trip. Taps and the undelete alert come later (TRIP-20 and on); an empty
+/// feed stays plain until Phase 6.
 struct ActivityView: View {
     @Environment(AppModel.self) private var app
     @State private var addingTrip = false
     @State private var settling = false
     @State private var path: [UUID] = []
+    @State private var query = ""
 
     var body: some View {
         NavigationStack(path: $path) {
-            List(app.activity) { event in
+            List(app.activity.filter { $0.matches(query) }) { event in
                 ActivityRow(event: event, line: line(event))
                     .listRowInsets(EdgeInsets(top: Spacing.md, leading: Spacing.lg, bottom: Spacing.md, trailing: Spacing.lg))
                     .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }  // Figma: separators run the row's full width
             }
             .listStyle(.insetGrouped)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))  // Figma: always under the title
             .overlay {
                 if app.activity.isEmpty {
                     Text("No activity yet").font(.subheadline).foregroundStyle(Color.tsSecondary)
+                } else if !app.activity.contains(where: { $0.matches(query) }) {
+                    ContentUnavailableView.search(text: query)
                 }
             }
             .navigationTitle("Activity")
