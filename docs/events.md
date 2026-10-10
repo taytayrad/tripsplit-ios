@@ -11,6 +11,7 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 | `expense_added` | Connor added "Airbnb" in "Coast Road" | see *Expense dollar line* below | members whose delta ≠ 0 | `notify_expense` |
 | `expense_updated` | Tyler updated "Costco" in "Lake House" | same rules as added, using the change | members whose delta ≠ 0 | `notify_expense` |
 | `expense_deleted` | Tyler deleted "Costco" in "Lake House" | the reversal, same rules | members whose delta ≠ 0 | `notify_expense` |
+| `expense_restored` | Tyler restored "Costco" in "Lake House" | same rules as added (the expense going back on) | members whose delta ≠ 0 | `notify_expense` |
 | `payment_logged`, someone paid you | Sammy paid you in "Orlando 2027" | "You received $518.44" | the payee | `notify_paid` |
 | `payment_logged`, you paid | You paid Connor $30 in "Coast Road" | none (amount is in the statement) | the payee | `notify_paid` |
 | `payment_logged`, between others | Tyler paid Connor in "Lake House" | none | the payee only | `notify_paid` |

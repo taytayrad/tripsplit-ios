@@ -7,11 +7,19 @@ enum ActivityKind: String, Codable, Hashable, Sendable {
     case expenseAdded = "expense_added"
     case expenseUpdated = "expense_updated"
     case expenseDeleted = "expense_deleted"
+    case expenseRestored = "expense_restored"
     case paymentLogged = "payment_logged"
     case paymentDeleted = "payment_deleted"
     case tripDeleted = "trip_deleted"
     case tripUndeleted = "trip_undeleted"
     case memberRemoved = "member_removed"
+    /// A kind this build doesn't know yet (a newer build's event). Dropped at load, so a new kind never stops an
+    /// older build from refreshing (PR #32 review).
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
 }
 
 /// The Activity statement and dollar line for one event, from who is looking (docs/events.md).
@@ -65,6 +73,8 @@ enum ActivityCopy {
             return "\(actor) updated \(quoted(event.subject ?? "")) in \(trip)"
         case .expenseDeleted:
             return "\(actor) deleted \(quoted(event.subject ?? "")) in \(trip)"
+        case .expenseRestored:
+            return "\(actor) restored \(quoted(event.subject ?? "")) in \(trip)"
         case .paymentLogged:
             return paymentStatement(event, viewer: viewer, trip: trip)
         case .paymentDeleted:
@@ -75,6 +85,8 @@ enum ActivityCopy {
             return "\(actor) restored the trip \(trip)"
         case .memberRemoved:
             return removal(event, viewer: viewer, viewerName: viewerName, actor: actor, trip: trip)
+        case .unknown:
+            return ""
         }
     }
 
@@ -118,7 +130,7 @@ enum ActivityCopy {
 
     private static func dollarLine(_ event: Event, viewer: UUID) -> String? {
         switch event.kind {
-        case .expenseAdded, .expenseUpdated, .expenseDeleted:
+        case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored:
             return expenseDollar(event, viewer: viewer)
         case .paymentLogged:
             // Receiving moves your net down, so the expense rule would say "You owe". This line is its own sentence.
@@ -130,7 +142,7 @@ enum ActivityCopy {
             if delta > 0 { return "You get back \(Money.string(delta))" }
             if delta < 0 { return "You owe \(Money.string(delta))" }
             return nil
-        case .tripCreated, .memberJoined, .tripDeleted, .tripUndeleted, .memberRemoved:
+        case .tripCreated, .memberJoined, .tripDeleted, .tripUndeleted, .memberRemoved, .unknown:
             return nil
         }
     }

@@ -68,6 +68,13 @@ struct ActivityLoadTests {
         return "{\(body)}"
     }
 
+    /// A kind from a newer build decodes as `.unknown` instead of failing the whole load (PR #32 review).
+    @Test func anUnknownKindStillDecodes() throws {
+        let row = try decode(Self.json(id: "00000000-0000-0000-0000-000000000199", kind: "expense_archived",
+                                       actor: Self.alex, actorName: "Alex", tripName: "Coast Road"))
+        #expect(row.kind == .unknown)
+    }
+
     func decode(_ json: String) throws -> ActivityEvent {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

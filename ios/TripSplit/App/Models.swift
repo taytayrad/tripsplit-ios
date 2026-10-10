@@ -184,11 +184,14 @@ struct Expense: Codable, Identifiable, Hashable {
     let createdBy: UUID
     let createdAt: Date
     var expenseShares: [ExpenseShare]
+    /// Set when the expense is deleted. It's out of every balance and the trip's list, and can be restored.
+    var deletedAt: Date? = nil
+    var deletedBy: UUID? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, description, icon, tripId = "trip_id", amountCents = "amount_cents", payerId = "payer_id"
         case splitKind = "split_kind", spentOn = "spent_on", createdBy = "created_by", createdAt = "created_at"
-        case expenseShares = "expense_shares"
+        case expenseShares = "expense_shares", deletedAt = "deleted_at", deletedBy = "deleted_by"
     }
 
     func share(of user: UUID?) -> Int? { expenseShares.first { $0.userId == user }?.shareCents }

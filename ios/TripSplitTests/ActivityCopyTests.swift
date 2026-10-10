@@ -68,6 +68,13 @@ struct ActivityCopyTests {
                "Tyler deleted \"Costco\" in \"Lake House\"", dollar: "You get back $50")
     }
 
+    @Test func expenseRestoredPutsTheShareBack() {
+        // The stored delta is the expense going back on: a $50 share you owe is −50 again.
+        expect(.init(kind: .expenseRestored, actorId: Self.tyler, actorName: "Tyler", tripName: "Lake House",
+                      subject: "Costco", deltas: [Self.you: -5000]),
+               "Tyler restored \"Costco\" in \"Lake House\"", dollar: "You owe $50")
+    }
+
     @Test func someonePaidYou() {
         // The payee's delta is negative. The line is "You received", not the expense rule's "You owe".
         expect(.init(kind: .paymentLogged, actorId: Self.sammy, actorName: "Sammy", tripName: "Orlando 2027",
@@ -213,12 +220,13 @@ struct ActivityCopyTests {
         .init(note: "Alex paid; you not in the split", delta: 0, youPaid: false, share: nil, line: nil),
     ]
 
-    @Test(arguments: [ActivityKind.expenseAdded, .expenseUpdated, .expenseDeleted], ActivityCopyTests.lyft)
+    @Test(arguments: [ActivityKind.expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored], ActivityCopyTests.lyft)
     func lyftDollarLines(_ kind: ActivityKind, _ lyft: LyftLine) {
         let verb = switch kind {
         case .expenseAdded: "added"
         case .expenseUpdated: "updated"
         case .expenseDeleted: "deleted"
+        case .expenseRestored: "restored"
         default: ""
         }
         let event = ActivityCopy.Event(

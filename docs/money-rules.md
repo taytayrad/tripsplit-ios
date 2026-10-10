@@ -87,7 +87,8 @@ Either person on a payment can delete it (soft delete). Deleted payments are exc
 ## Expense lifecycle
 
 - **Edit** replaces the amount, payer, split, and shares, and recomputes shares with the rules above. Earlier shares are not kept. An earlier Activity row keeps the own-cost amount it was written with.
-- **Delete** is permanent (hard delete). The Activity event keeps a snapshot of the title, and of the payer, amount, and the payer's share, taken while the expense still exists.
+- **Delete** keeps the expense and its shares, marked deleted (`deleted_at`). A deleted expense is left out of every net and suggested payment, and it can't be edited. The Activity event keeps a snapshot of the title, and of the payer, amount, and the payer's share. Expenses deleted before TRIP-27 were removed outright and stay gone.
+- **Restore** puts a deleted expense back exactly as it was: same amount, payer, and shares, so every net returns to what it was before the delete (plus anything that happened since). Any active member of the trip can restore. It's refused on a deleted trip, and when the payer or anyone in the split is no longer on the trip (add them back first). Restoring an expense that's already back does nothing.
 - A member added after an expense was saved is not on that expense.
 - Removing a member never rewrites expenses, except under *wipe*.
 
@@ -149,6 +150,17 @@ Nets per member on one trip.
 | P4 | You owe Tyler 30 on Coast Road and 15 on Lake House | you pay 45 as Coast Road 30 + Lake House 15 | two rows; you're settled with Tyler on both trips |
 | P5 | P4, the same log repeated with the same `request_id` | — | no new rows |
 | P6 | Jo owes you 8 on Coast Road | you record 8 from Jo, cash | Jo is the payer; Jo and you settled |
+
+### Deleting and restoring an expense
+
+| # | Setup | Action | Expected |
+|---|---|---|---|
+| X1 | G1 | delete Tyler's $60 stay | You −10 · Atish +20 · Tyler −10 (only Atish's $30 dinner counts) |
+| X2 | X1 | restore the stay | back to G1 exactly: You −30 · Atish 0 · Tyler +30 |
+| X3 | X2 | restore the stay again | nothing changes; one `expense_restored` event |
+| X4 | X1 | edit the deleted stay | refused: restore it first |
+| X5 | X1, then the trip is deleted | restore the stay | refused: the trip is deleted. After the trip is undeleted, it's X1, and restoring gives G1 |
+| X6 | Jo pays $20 lunch, equal you/Jo; delete it; Jo leaves at $0 | restore the lunch | refused: someone on this expense left the trip |
 
 ### Removing and leaving
 

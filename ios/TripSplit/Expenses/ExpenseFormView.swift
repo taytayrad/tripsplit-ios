@@ -347,7 +347,7 @@ private struct DeleteExpenseAlert: ViewModifier {
                 }
             }
         } message: { _ in
-            Text("It comes off everyone’s balance on \(tripName). This can’t be undone.")
+            Text("It comes off everyone’s balance on “\(tripName)”. Anyone on the trip can restore it.")
         }
     }
 }
