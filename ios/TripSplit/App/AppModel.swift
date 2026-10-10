@@ -179,6 +179,7 @@ final class AppModel {
             }
             let tripNets: [TripNet]
             (trips, settlements, tripNets, profile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
+            activity.removeAll { $0.kind == .unknown }
             nets = Dictionary(tripNets.map { ($0.tripId, $0.cents) }, uniquingKeysWith: +)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }

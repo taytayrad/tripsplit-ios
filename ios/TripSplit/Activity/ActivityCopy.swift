@@ -13,6 +13,13 @@ enum ActivityKind: String, Codable, Hashable, Sendable {
     case tripDeleted = "trip_deleted"
     case tripUndeleted = "trip_undeleted"
     case memberRemoved = "member_removed"
+    /// A kind this build doesn't know yet (a newer build's event). Dropped at load, so a new kind never stops an
+    /// older build from refreshing (PR #32 review).
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+    }
 }
 
 /// The Activity statement and dollar line for one event, from who is looking (docs/events.md).
@@ -78,6 +85,8 @@ enum ActivityCopy {
             return "\(actor) restored the trip \(trip)"
         case .memberRemoved:
             return removal(event, viewer: viewer, viewerName: viewerName, actor: actor, trip: trip)
+        case .unknown:
+            return ""
         }
     }
 
@@ -133,7 +142,7 @@ enum ActivityCopy {
             if delta > 0 { return "You get back \(Money.string(delta))" }
             if delta < 0 { return "You owe \(Money.string(delta))" }
             return nil
-        case .tripCreated, .memberJoined, .tripDeleted, .tripUndeleted, .memberRemoved:
+        case .tripCreated, .memberJoined, .tripDeleted, .tripUndeleted, .memberRemoved, .unknown:
             return nil
         }
     }
