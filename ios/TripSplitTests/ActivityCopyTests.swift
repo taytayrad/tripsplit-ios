@@ -14,10 +14,11 @@ struct ActivityCopyTests {
 
     func expect(_ event: ActivityCopy.Event, _ statement: String, dollar: String? = nil,
                 viewer: UUID = ActivityCopyTests.you, viewerName: String = "",
-                sourceLocation: SourceLocation = #_sourceLocation) {
-        let line = ActivityCopy.line(event, viewer: viewer, viewerName: viewerName)
-        #expect(line.statement == statement, sourceLocation: sourceLocation)
-        #expect(line.dollarLine == dollar, sourceLocation: sourceLocation)
+                fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column) {
+        let source = SourceLocation(fileID: fileID, filePath: filePath, line: line, column: column)
+        let result = ActivityCopy.line(event, viewer: viewer, viewerName: viewerName)
+        #expect(result.statement == statement, sourceLocation: source)
+        #expect(result.dollarLine == dollar, sourceLocation: source)
     }
 
     // MARK: Statements (docs/events.md matrix)

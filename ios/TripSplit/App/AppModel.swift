@@ -18,6 +18,8 @@ final class AppModel {
     var nets: [UUID: Int] = [:]
     /// Payments on your trips, oldest first.
     var payments: [Payment] = []
+    /// Your activity, newest first, including rows on a deleted trip.
+    var activity: [ActivityEvent] = []
     /// People you share a trip with ("On TripSplit"), with their pay methods.
     var people: [Profile] = []
     var pendingInvite: String? {
@@ -65,7 +67,7 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []
+                profile = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
@@ -149,6 +151,7 @@ final class AppModel {
         do {
             async let t: [Trip] = db.from("trips")
                 .select("*, trip_members(user_id, position, removed_at, profiles!trip_members_user_id_fkey(id, display_name))")
+                // Deleted trips stay off this list. Activity loads those rows on purpose.
                 .is("deleted_at", value: nil).order("created_at", ascending: false).value()
             async let s: [Settlement] = allPages { from, to in
                 try self.db.rpc("my_trip_settlements").order("trip_id").order("seq").range(from: from, to: to)
@@ -169,8 +172,13 @@ final class AppModel {
                 self.db.from("payments").select("id, trip_id, payer_id, payee_id, amount_cents, method, paid_on, created_at")
                     .is("deleted_at", value: nil).order("created_at").order("id").range(from: from, to: to)
             }
+            // Newest first, including a deleted trip. A soft-deleted payment still embeds (no deleted_at filter).
+            async let events: [ActivityEvent] = allPages { from, to in
+                self.db.from("activity_events").select(ActivityQuery.columns)
+                    .order("created_at", ascending: false).order("id").range(from: from, to: to)
+            }
             let tripNets: [TripNet]
-            (trips, settlements, tripNets, profile, people, expenses, payments) = try await (t, s, n, me, p, e, pay)
+            (trips, settlements, tripNets, profile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
             nets = Dictionary(tripNets.map { ($0.tripId, $0.cents) }, uniquingKeysWith: +)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
@@ -207,7 +215,7 @@ final class AppModel {
         guard realtime == nil else { return }
         let channel = db.channel("changes")
         // Not expenses or expense_shares: their DELETE events would reach every subscriber. Every change to
-        // them writes an activity_events row, so that table is the signal.
+        // them writes an activity_events row, so that table is the signal. This refresh reloads activity too.
         for table in ["trips", "trip_members", "payments", "activity_events"] {
             realtimeSubscriptions.append(channel.onPostgresChange(AnyAction.self, schema: "public", table: table) { [weak self] _ in
                 Task { @MainActor in self?.scheduleRefresh() }
