@@ -7,7 +7,7 @@ struct MainView: View {
         @Bindable var app = app
         TabView {
             TripsView().tabItem { Label("Trips", systemImage: "suitcase") }
-            PlaceholderTab(title: "Activity").tabItem { Label("Activity", systemImage: "clock") }  // Phase 5
+            ActivityView().tabItem { Label("Activity", systemImage: "clock") }
             ProfileTab().tabItem { Label("Profile", systemImage: "person.crop.circle") }           // Phase 5 fills this in
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
@@ -61,16 +61,6 @@ private struct AddButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(noTrips ? "Add trip" : "Add expense")
-    }
-}
-
-struct PlaceholderTab: View {
-    let title: String
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView("Coming soon", systemImage: "clock", description: Text("\(title) arrives in a later build."))
-                .navigationTitle(title)
-        }
     }
 }
 
