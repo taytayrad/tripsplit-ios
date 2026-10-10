@@ -85,6 +85,13 @@ struct SplitView: View {
                         .keyboardType(kind == .shares ? .numberPad : .decimalPad)
                         .multilineTextAlignment(.trailing)
                         .focused($focused, equals: m.userId)
+                        .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { note in
+                            // Every value box (exact, percent, shares): the cursor starts after the value, so it can be
+                            // deleted or changed straight away.
+                            // (iOS 17 has no SwiftUI selection API; after a tick, so the tap's own placement doesn't win.)
+                            guard let field = note.object as? UITextField else { return }
+                            DispatchQueue.main.async { field.selectedTextRange = field.textRange(from: field.endOfDocument, to: field.endOfDocument) }
+                        }
                     if kind == .percent { Text("%") }
                 }
                 .padding(.horizontal, Spacing.sm)
