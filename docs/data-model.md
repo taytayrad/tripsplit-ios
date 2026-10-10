@@ -59,6 +59,8 @@ erDiagram
         uuid created_by FK
         timestamptz created_at
         timestamptz updated_at
+        timestamptz deleted_at "nullable = deleted; out of every net, restorable"
+        uuid deleted_by "nullable"
     }
     expense_shares {
         uuid expense_id PK
@@ -127,7 +129,8 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `add_member(trip, user)` | adds someone you already share a trip with (including a removed member, who comes back with no share in old expenses); logs `member_joined` |
 | `invite_preview(invite_token)` | trip name, inviter, and stamp for the sign-in screen; the one function anon may call |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
-| `delete_expense(id)` | logs `expense_deleted` with deltas while the expense still exists (so the own-cost snapshot can be read), then hard-deletes the expense and its shares |
+| `delete_expense(id)` | logs `expense_deleted` with deltas, then sets `deleted_at` (the expense and its shares stay, out of every net). A deleted expense can't be edited (`save_expense` is refused: "restore it first"). Expenses deleted before TRIP-27 were hard-deleted |
+| `restore_expense(id)` | any active member of a live trip. Clears `deleted_at` and logs `expense_restored` with deltas. Refused on a deleted trip, and when the payer or anyone in the split is no longer an active member ("someone on this expense left the trip; add them back first"). Restoring one that's already back does nothing |
 | `log_payment(other_user, direction, method, request_id, paid_on, parts)` | `direction` is `pay` (you pay them) or `record` (they paid you). `parts` is `[{trip_id, cents}]`: one payment per trip ("2 Trips" sends two). Each part must be no more than the payer owes and the payee is owed on that trip, and both people must be on it. Locks the trips, inserts the rows, logs `payment_logged` per row, and returns them. Retrying a `request_id` returns the existing rows (only to the person who logged it) |
 | `delete_payment(id)` | soft-deletes, logs `payment_deleted`; refused on a deleted trip so undelete restores it exactly |
 | `remove_member(trip, user)` | removes someone else, only when their net on the trip is $0 ("only members with a $0 balance can be removed"); logs `member_removed` with empty deltas |

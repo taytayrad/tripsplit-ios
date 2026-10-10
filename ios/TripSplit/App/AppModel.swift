@@ -204,7 +204,8 @@ final class AppModel {
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
-    func expenses(on trip: UUID) -> [Expense] { expenses.filter { $0.tripId == trip } }
+    /// The trip's expenses, leaving out deleted ones (they open from Activity, not the trip's list).
+    func expenses(on trip: UUID) -> [Expense] { expenses.filter { $0.tripId == trip && $0.deletedAt == nil } }
     func payments(on trip: UUID) -> [Payment] { payments.filter { $0.tripId == trip } }
     func profile(of user: UUID) -> Profile? { user == userId ? profile : people.first { $0.id == user } }
 
@@ -264,6 +265,12 @@ final class AppModel {
 
     func deleteExpense(_ id: UUID) async throws {
         try await db.rpc("delete_expense", params: ["p_expense": id]).run()
+        await refresh()
+    }
+
+    /// Puts a deleted expense back. Refused when someone on it has left the trip, or the trip is deleted.
+    func restoreExpense(_ id: UUID) async throws {
+        try await db.rpc("restore_expense", params: ["p_expense": id]).run()
         await refresh()
     }
 

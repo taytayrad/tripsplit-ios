@@ -20,6 +20,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Log a payment | either of the two people | the caller must be the payer or payee, and both must be on the trip (the other may be a member removed with *keep* before the net model) |
 | See every member's net and the suggested payments | active member | `my_trip_settlements()`; a removed member sees only suggestions involving them |
 | Delete a payment | payer or payee | soft delete |
+| Restore a deleted expense | any active member | not on a deleted trip, and not when someone on the expense has left the trip |
 | Edit profile, pay methods, notifications | self | |
 
 ## Table access (RLS)
@@ -29,7 +30,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | `profiles` | self; anyone you've shared a trip with, including removed members (a removed member's name stays on the trip, and with keep they still settle up) | self, update only |
 | `trips` | active members | none (use `create_trip`, `delete_trip`, `undelete_trip`). Name, dates, and stamp can be updated by active members. |
 | `trip_members` | active members of the trip | none (use `join_trip`, `remove_member`) |
-| `expenses`, `expense_shares` | active members | none (use `save_expense`, `delete_expense`) |
+| `expenses`, `expense_shares` | active members, including deleted expenses (they open from Activity) | none (use `save_expense`, `delete_expense`, `restore_expense`) |
 | `payments` | active members, plus a removed-with-keep payer or payee for their own rows | none (use `log_payment`, `delete_payment`) |
 | `activity_events` | active members. A trip's deleted state doesn't hide its events, so members still see the `trip_deleted` row and can undelete | none, ever (written by functions) |
 | `device_tokens` | self | self |

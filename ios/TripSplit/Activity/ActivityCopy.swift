@@ -7,6 +7,7 @@ enum ActivityKind: String, Codable, Hashable, Sendable {
     case expenseAdded = "expense_added"
     case expenseUpdated = "expense_updated"
     case expenseDeleted = "expense_deleted"
+    case expenseRestored = "expense_restored"
     case paymentLogged = "payment_logged"
     case paymentDeleted = "payment_deleted"
     case tripDeleted = "trip_deleted"
@@ -65,6 +66,8 @@ enum ActivityCopy {
             return "\(actor) updated \(quoted(event.subject ?? "")) in \(trip)"
         case .expenseDeleted:
             return "\(actor) deleted \(quoted(event.subject ?? "")) in \(trip)"
+        case .expenseRestored:
+            return "\(actor) restored \(quoted(event.subject ?? "")) in \(trip)"
         case .paymentLogged:
             return paymentStatement(event, viewer: viewer, trip: trip)
         case .paymentDeleted:
@@ -118,7 +121,7 @@ enum ActivityCopy {
 
     private static func dollarLine(_ event: Event, viewer: UUID) -> String? {
         switch event.kind {
-        case .expenseAdded, .expenseUpdated, .expenseDeleted:
+        case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored:
             return expenseDollar(event, viewer: viewer)
         case .paymentLogged:
             // Receiving moves your net down, so the expense rule would say "You owe". This line is its own sentence.
