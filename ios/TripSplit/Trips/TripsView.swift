@@ -7,10 +7,11 @@ struct TripsView: View {
     @State private var path: [UUID] = []
     @State private var settling = false
 
-    private var visible: [Trip] {
-        app.trips.filter { showSettled || !TripVisibility.isHidden(endDate: $0.end, netCents: app.nets[$0.id] ?? 0) }
-    }
-    private var hiddenCount: Int { app.trips.count - app.trips.filter { !TripVisibility.isHidden(endDate: $0.end, netCents: app.nets[$0.id] ?? 0) }.count }
+    private func isSettled(_ trip: Trip) -> Bool { TripVisibility.isHidden(endDate: trip.end, netCents: app.nets[trip.id] ?? 0) }
+    /// Trips still in play, newest first.
+    private var active: [Trip] { app.trips.filter { !isSettled($0) } }
+    /// Past trips at $0, shown below "Show settled trips" once it's tapped.
+    private var settled: [Trip] { app.trips.filter(isSettled) }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -19,15 +20,28 @@ struct TripsView: View {
                     EmptyTrips { addingTrip = true }.padding(.top, 80)
                 } else {
                     LazyVStack(spacing: Spacing.lg) {
-                        ForEach(visible) { trip in
-                            NavigationLink(value: trip.id) { TripCard(trip: trip, netCents: app.nets[trip.id] ?? 0) }
-                                .buttonStyle(.plain)
+                        if active.isEmpty && !showSettled {
+                            // Every trip is settled: the empty state, with the way back to them.
+                            EmptyTrips(title: "You’re all settled",
+                                       message: "Every trip is paid up. Start a new one, or look back at the ones you’ve settled.") { addingTrip = true }
+                                .padding(.top, 80)
+                        } else {
+                            ForEach(active, content: card)
+                            // Add trip stays with the trips in play, so showing settled trips doesn't push it down.
+                            AddTripCard { addingTrip = true }
                         }
-                        if hiddenCount > 0 {
-                            Button(showSettled ? "Hide settled trips" : "Show settled trips") { showSettled.toggle() }
-                                .font(.subheadline)
+                        if !settled.isEmpty {
+                            Button(showSettled ? "Hide settled trips" : settled.count == 1 ? "Show 1 settled trip" : "Show \(settled.count) settled trips") {
+                                withAnimation { showSettled.toggle() }
+                            }
+                            .font(.subheadline).frame(minHeight: 44)
+                            .accessibilityValue(showSettled ? "Showing" : "Hidden")
+                            if showSettled {
+                                ForEach(settled) { trip in
+                                    NavigationLink(value: trip.id) { SettledTripRow(trip: trip) }.buttonStyle(.plain)
+                                }
+                            }
                         }
-                        Button("Add trip") { addingTrip = true }.font(.subheadline)
                     }
                     .padding(Spacing.lg)
                 }
@@ -45,17 +59,60 @@ struct TripsView: View {
     }
 }
 
+extension TripsView {
+    private func card(_ trip: Trip) -> some View {
+        NavigationLink(value: trip.id) { TripCard(trip: trip, netCents: app.nets[trip.id] ?? 0) }
+            .buttonStyle(.plain)
+    }
+}
+
 struct EmptyTrips: View {
+    var title = "No trips yet"
+    var message = "Start one, add your friends, and log who paid."
     let onAdd: () -> Void
     var body: some View {
         VStack(spacing: Spacing.md) {
             StampCluster()
-            Text("No trips yet").font(.title3.weight(.semibold)).padding(.top, Spacing.xs)
-            Text("Start one, add your friends, and log who paid.")
+            Text(title).font(.title3.weight(.semibold)).padding(.top, Spacing.xs)
+            Text(message)
                 .font(.subheadline).foregroundStyle(Color.tsSecondary).multilineTextAlignment(.center)
             Button("Add Trip", action: onAdd).buttonStyle(PrimaryButtonStyle()).frame(width: 200)
         }
         .padding(.horizontal, Spacing.lg)
+    }
+}
+
+/// Figma Add trip card: a short dashed placeholder under the trips in play. The outline uses the secondary text
+/// color so it stays visible (3:1 or better) on the grouped background.
+struct AddTripCard: View {
+    let onAdd: () -> Void
+    var body: some View {
+        Button(action: onAdd) {
+            Label("Add trip", systemImage: "plus").font(.headline).foregroundStyle(Color.tsTintFill)
+                .frame(maxWidth: .infinity, minHeight: 72)
+                .overlay(RoundedRectangle(cornerRadius: Radius.xl).strokeBorder(Color.tsSecondary, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A settled trip, shown below "Show settled trips": one compact line (stamp, name, "Settled"), so finished trips
+/// don't compete with the ones still in play.
+struct SettledTripRow: View {
+    let trip: Trip
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            StampAvatar(spec: trip.stamp, size: 40)
+            Text(trip.name).font(.headline).foregroundStyle(.primary).lineLimit(1)
+            Spacer()
+            Text("Settled").font(.subheadline).foregroundStyle(Color.tsSecondary)
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
+        }
+        .padding(.horizontal, Spacing.lg).frame(minHeight: 60)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.xl))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(trip.name), settled")
     }
 }
 
