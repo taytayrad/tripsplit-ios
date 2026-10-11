@@ -71,6 +71,10 @@ struct ProfileView: View {
                 }
 
                 Section {
+                    NavigationLink("App icon") { AppIconView() }
+                }
+
+                Section {
                     Button("Sign out", role: .destructive) { confirmSignOut = true }
                 }
 

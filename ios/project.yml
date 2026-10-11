@@ -32,6 +32,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.taylor.tripsplit
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconD2 AppIconD3 AppIconD4"
         INFOPLIST_KEY_CFBundleDisplayName: TripSplit
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

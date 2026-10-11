@@ -43,6 +43,7 @@ flowchart LR
     activity -- "deleted trip row" --> undelete["Undelete alert [12c]"]
     profile -- name --> name["Name [F4]"]
     profile -- Venmo --> venmo["Venmo [F3]"]
+    profile -- "App icon" --> appicon["App icon: four passport stamp designs"]
     paym -- Venmo --> venmo
     profile -- "Sign out" --> signout["Sign out confirm [F5]"]
 ```
