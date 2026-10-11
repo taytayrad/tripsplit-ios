@@ -1,4 +1,4 @@
-import { deepStrictEqual as equal, ok } from "node:assert/strict";
+import { deepStrictEqual as equal, ok, rejects } from "node:assert/strict";
 import { providerToken } from "./apns.ts";
 
 Deno.test("APNs JWT has an ES256 signature, key id, team id, and epoch iat; cached for 50 minutes", async () => {
@@ -52,4 +52,9 @@ Deno.test("APNs JWT has an ES256 signature, key id, team id, and epoch iat; cach
     )(),
     jwt,
   );
+});
+
+Deno.test("an invalid private key rejects the awaited send, without starting a background import", async () => {
+  const token = providerToken("AA==", "KEY1234567", "TEAM123456");
+  await rejects(token());
 });

@@ -185,7 +185,15 @@ export async function handlePush(
         if (
           result.timestamp == null ||
           Date.parse(device.updated_at) <= result.timestamp
-        ) await db(row, { method: "DELETE" });
+        ) {
+          // Postgres retains sub-millisecond precision that JavaScript's Date drops.
+          const cutoff = result.timestamp == null
+            ? ""
+            : `&updated_at=lte.${
+              encodeURIComponent(new Date(result.timestamp).toISOString())
+            }`;
+          await db(row + cutoff, { method: "DELETE" });
+        }
         return false;
       }
       throw new Error(

@@ -18,13 +18,14 @@ export function providerToken(
     atob(pem.replace(/-----[^-]+-----|\s|\\n/g, "")),
     (c) => c.charCodeAt(0),
   );
-  const key = crypto.subtle.importKey(
-    "pkcs8",
-    der,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"],
-  );
+  const key = () =>
+    crypto.subtle.importKey(
+      "pkcs8",
+      der,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign"],
+    );
   let cached: { issued: number; value: Promise<string> } | undefined;
   return () => {
     const issued = Math.floor(now() / 1000);
@@ -39,7 +40,7 @@ export function providerToken(
         }`;
         const signature = await crypto.subtle.sign(
           { name: "ECDSA", hash: "SHA-256" },
-          await key,
+          await key(),
           new TextEncoder().encode(unsigned),
         );
         return `${unsigned}.${base64url(new Uint8Array(signature))}`;

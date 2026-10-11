@@ -280,6 +280,23 @@ Deno.test("unknown token invalid on both hosts is removed", async () => {
   equal(s.mutations()[0].init.method, "DELETE");
 });
 
+Deno.test("APNs cleanup preserves registrations made later within the same millisecond", async () => {
+  const registered = "2026-10-10T00:00:00.000999+00:00";
+  const s = stub({
+    devices: [{ ...device, updated_at: registered }],
+    responses: [{
+      status: 410,
+      reason: "Unregistered",
+      timestamp: Date.parse(device.updated_at),
+    }],
+  });
+  equal((await handlePush(request(), config, s.fetcher)).status, 200);
+  equal(s.mutations()[0].url.searchParams.getAll("updated_at"), [
+    `eq.${registered}`,
+    "lte.2026-10-10T00:00:00.000Z",
+  ]);
+});
+
 Deno.test("an APNs invalidation older than the registration never deletes it", async () => {
   const s = stub({
     responses: [{
