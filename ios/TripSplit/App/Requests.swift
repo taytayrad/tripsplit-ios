@@ -52,6 +52,12 @@ struct PayMethodsUpdate: Encodable {
     }
 }
 
+struct DeviceTokenRow: Encodable, Sendable {
+    let user_id: UUID
+    let token: String
+    let updated_at: Date
+}
+
 // supabase-swift's PostgrestResponse isn't Sendable, so AppModel (main actor) can't receive it.
 // These run the query off the main actor and hand back only the decoded, Sendable value.
 extension PostgrestBuilder {

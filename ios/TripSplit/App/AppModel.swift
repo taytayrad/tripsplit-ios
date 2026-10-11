@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 import Supabase
+import UIKit
 import UserNotifications
 
 /// App state and every backend call. Views read from it and call its methods.
@@ -93,7 +94,12 @@ final class AppModel {
         } catch { self.error = "Couldn't sign in. Try again." }
     }
 
-    func signOut() async { try? await db.auth.signOut() }
+    /// Deletes this phone's push token first (while still signed in, so the row is ours to delete), so pushes for
+    /// this account stop arriving here.
+    func signOut() async {
+        if let token = deviceToken { try? await db.from("device_tokens").delete().eq("token", value: token).run() }
+        try? await db.auth.signOut()
+    }
 
     #if DEBUG
     /// Local development only: a throwaway account, so two simulators can act as two people.
@@ -109,6 +115,7 @@ final class AppModel {
     #endif
 
     private func afterSignIn() async {
+        await registerForPush()
         await loadProfile()
         guard let id = userId else { return }
         let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
@@ -120,7 +127,29 @@ final class AppModel {
 
     func requestNotifications() async {
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+        await registerForPush()
         stage = .payMethods
+    }
+
+    // MARK: Push token
+
+    /// This phone's APNs token, once iOS has handed it over (never on the simulator).
+    private(set) var deviceToken: String?
+
+    /// Asks iOS for this phone's push token when notifications are allowed; the token arrives in `saveDeviceToken`.
+    /// Without permission nothing happens, and nothing waits on it.
+    func registerForPush() async {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        guard [.authorized, .provisional, .ephemeral].contains(status) else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// Stores the token for whoever is signed in. Upserted, so the same token twice is one row.
+    func saveDeviceToken(_ token: String) async {
+        deviceToken = token
+        guard let id = userId else { return }
+        try? await db.from("device_tokens")
+            .upsert(DeviceTokenRow(user_id: id, token: token, updated_at: .now), onConflict: "user_id,token").run()
     }
 
     func skipNotifications() { stage = .payMethods }

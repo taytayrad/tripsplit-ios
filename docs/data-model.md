@@ -1,6 +1,6 @@
 # Data model
 
-The Supabase Postgres schema, implemented through Phase 3 (`push` and `device_tokens` writes arrive in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
+The Supabase Postgres schema, implemented through Phase 3, plus Phase 5's `device_tokens` writes (the app upserts this phone's APNs token while notifications are allowed, and deletes it at sign-out; the `push` function arrives later in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
 erDiagram
