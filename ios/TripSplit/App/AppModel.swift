@@ -95,8 +95,13 @@ final class AppModel {
     }
 
     /// Deletes this phone's push token first (while still signed in, so the row is ours to delete), so pushes for
-    /// this account stop arriving here.
+    /// this account stop arriving here. A token save still in flight finishes first, and none starts meanwhile, so
+    /// it can't put the row back. If the delete fails (offline), the next account to register this phone takes the
+    /// token over (`register_device_token`), so it never stays with the wrong person for long.
     func signOut() async {
+        signingOut = true
+        defer { signingOut = false }
+        await tokenSave?.value
         if let token = deviceToken { try? await db.from("device_tokens").delete().eq("token", value: token).run() }
         try? await db.auth.signOut()
     }
@@ -133,8 +138,13 @@ final class AppModel {
 
     // MARK: Push token
 
-    /// This phone's APNs token, once iOS has handed it over (never on the simulator).
-    private(set) var deviceToken: String?
+    /// This phone's APNs token, once iOS has handed it over (never on the simulator). Kept across launches, so
+    /// sign-out can delete it even after notifications were turned off (PR #36 review).
+    private(set) var deviceToken: String? = UserDefaults.standard.string(forKey: "apnsToken") {
+        didSet { UserDefaults.standard.set(deviceToken, forKey: "apnsToken") }
+    }
+    private var tokenSave: Task<Void, Never>?
+    private var signingOut = false
 
     /// Asks iOS for this phone's push token when notifications are allowed; the token arrives in `saveDeviceToken`.
     /// Without permission nothing happens, and nothing waits on it.
@@ -144,12 +154,18 @@ final class AppModel {
         UIApplication.shared.registerForRemoteNotifications()
     }
 
-    /// Stores the token for whoever is signed in. Upserted, so the same token twice is one row.
+    /// Registers this phone for whoever is signed in. The server takes the token away from any other account, so
+    /// a phone gets one account's pushes at a time. Skipped while signing out.
     func saveDeviceToken(_ token: String) async {
         deviceToken = token
-        guard let id = userId else { return }
-        try? await db.from("device_tokens")
-            .upsert(DeviceTokenRow(user_id: id, token: token, updated_at: .now), onConflict: "user_id,token").run()
+        guard userId != nil, !signingOut else { return }
+        let previous = tokenSave
+        let save = Task {
+            await previous?.value
+            _ = try? await db.rpc("register_device_token", params: ["p_token": token]).run()
+        }
+        tokenSave = save
+        await save.value
     }
 
     func skipNotifications() { stage = .payMethods }

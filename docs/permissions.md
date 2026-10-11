@@ -33,7 +33,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | `expenses`, `expense_shares` | active members, including deleted expenses (they open from Activity) | none (use `save_expense`, `delete_expense`, `restore_expense`) |
 | `payments` | active members, plus a removed-with-keep payer or payee for their own rows | none (use `log_payment`, `delete_payment`) |
 | `activity_events` | active members. A trip's deleted state doesn't hide its events, so members still see the `trip_deleted` row and can undelete | none, ever (written by functions) |
-| `device_tokens` | self | self |
+| `device_tokens` | self | delete own rows (sign-out). Register with `register_device_token`, which also removes the token from any other account; a token belongs to one account at a time (unique) |
 
 ## Gotchas
 
