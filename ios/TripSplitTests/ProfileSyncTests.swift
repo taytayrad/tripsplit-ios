@@ -3,63 +3,92 @@ import Supabase
 import Testing
 @testable import TripSplit
 
-/// Autosave consistency on Profile (PR #35 review): the reviewer's two scenarios, plus a success then a failure.
+/// Profile autosave consistency (PR #35 reviews). Each test is one of the reported sequences.
 struct ProfileSyncTests {
     static let base = Profile(id: UUID(), displayName: "Taylor Radford", venmoUsername: nil, hasZelle: false, hasAppleCash: false)
 
-    func loadedSync() -> ProfileSync {
+    static func with(_ change: (inout Profile) -> Void) -> Profile { var p = base; change(&p); return p }
+
+    func loaded() -> ProfileSync {
         var sync = ProfileSync()
         sync.loaded(Self.base, startedAt: sync.epoch)
         return sync
     }
 
-    @Test func aLoadOvertakenByANewerSaveIsDropped() {
-        var sync = loadedSync()
+    @Test func anEditShowsAtOnce() {
+        var sync = loaded()
+        _ = sync.begin(["display_name": .string("Tay R")])
+        #expect(sync.shown?.displayName == "Tay R")
+        #expect(sync.confirmed?.displayName == "Taylor Radford")
+    }
+
+    /// Review 1: a load that started before a save settled is dropped.
+    @Test func aLoadFromBeforeASaveSettledIsDropped() {
+        var sync = loaded()
         let loadStarted = sync.epoch
-        sync.shown?.hasZelle = true; _ = sync.begin()  // you tap Zelle while an older load is in flight
-        var stale = Self.base; stale.hasZelle = false
-        sync.loaded(stale, startedAt: loadStarted)
+        let zelle = sync.begin(["has_zelle": .bool(true)])
+        sync.saved(zelle)
+        sync.loaded(Self.base, startedAt: loadStarted)  // the old read lands last
         #expect(sync.shown?.hasZelle == true)
     }
 
-    /// Second review: a refresh that started while the save was pending reads the old value and comes back after
-    /// the post-save reload. It's dropped; the save finishing moved the epoch on.
+    /// Review 2: Zelle off, tap on then off, both saves fail; Zelle stays off.
+    @Test func overlappingFailuresOnOneField() {
+        var sync = loaded()
+        let on = sync.begin(["has_zelle": .bool(true)])
+        let off = sync.begin(["has_zelle": .bool(false)])
+        #expect(sync.failed(on) == false)  // the newer save rewrites the same field
+        #expect(sync.shown?.hasZelle == false)
+        #expect(sync.failed(off) == true)
+        #expect(sync.shown?.hasZelle == false)
+    }
+
+    @Test func aFailureAfterASuccessShowsTheSavedValue() {
+        var sync = loaded()
+        let on = sync.begin(["has_zelle": .bool(true)]); sync.saved(on)
+        let off = sync.begin(["has_zelle": .bool(false)])
+        #expect(sync.failed(off) == true)
+        #expect(sync.shown?.hasZelle == true)  // the server has on
+    }
+
+    /// Review 3: a refresh reads off mid-save, the save succeeds, its reload shows on, then the refresh lands.
     @Test func aReadBegunDuringAPendingSaveIsDropped() {
-        var sync = loadedSync()  // Zelle off
-        sync.shown?.hasZelle = true; _ = sync.begin()
-        let refreshStarted = sync.epoch  // a foreground refresh starts while the PATCH is pending
-        sync.saved(["has_zelle": .bool(true)])
-        var after = Self.base; after.hasZelle = true
-        sync.loaded(after, startedAt: sync.epoch)  // the post-save reload
-        var before = Self.base; before.hasZelle = false
-        sync.loaded(before, startedAt: refreshStarted)  // the earlier refresh lands last
+        var sync = loaded()
+        let zelle = sync.begin(["has_zelle": .bool(true)])
+        let refreshStarted = sync.epoch
+        sync.saved(zelle)
+        sync.loaded(Self.with { $0.hasZelle = true }, startedAt: sync.epoch)
+        sync.loaded(Self.base, startedAt: refreshStarted)
         #expect(sync.shown?.hasZelle == true)
         #expect(sync.confirmed?.hasZelle == true)
     }
 
-    @Test func overlappingFailuresRestoreTheConfirmedValue() {
-        var sync = loadedSync()  // Zelle off on the server
-        sync.shown?.hasZelle = true; let on = sync.begin()
-        sync.shown?.hasZelle = false; let off = sync.begin()
-        sync.failed(on)  // overtaken: changes nothing
-        #expect(sync.shown?.hasZelle == false)
-        sync.failed(off)
-        #expect(sync.shown?.hasZelle == false)
-        #expect(sync.confirmed?.hasZelle == false)
+    /// Review 4: a refresh returns the old name while the save is pending; the save succeeds and its reload fails.
+    @Test func aPendingEditSurvivesARefreshThatReturnsMidSave() {
+        var sync = loaded()
+        let name = sync.begin(["display_name": .string("Tay R")])
+        sync.loaded(Self.base, startedAt: sync.epoch)  // starts and returns while the PATCH is pending
+        #expect(sync.shown?.displayName == "Tay R")
+        sync.saved(name)  // the reload after it fails, so nothing else arrives
+        #expect(sync.shown?.displayName == "Tay R")
     }
 
-    @Test func aFailureAfterASuccessRestoresTheSavedValue() {
-        var sync = loadedSync()
-        sync.shown?.hasZelle = true; _ = sync.begin()
-        sync.saved(["has_zelle": .bool(true)])
-        sync.shown?.hasZelle = false; let off = sync.begin()
-        sync.failed(off)
-        #expect(sync.shown?.hasZelle == true)  // the server has on
+    /// Review 5: the name save fails while a newer Zelle save is pending. The name failure still matters.
+    @Test func anOlderFailureOnAnotherFieldIsReported() {
+        var sync = loaded()
+        let name = sync.begin(["display_name": .string("Tay R")])
+        let zelle = sync.begin(["has_zelle": .bool(true)])
+        #expect(sync.failed(name) == true)
+        #expect(sync.shown?.displayName == "Taylor Radford")  // only the name goes back
+        #expect(sync.shown?.hasZelle == true)
+        sync.saved(zelle)
+        #expect(sync.shown?.displayName == "Taylor Radford")
+        #expect(sync.shown?.hasZelle == true)
     }
 
     @Test func applyingSetsColumnsIncludingNull() {
-        var withVenmo = Self.base; withVenmo.venmoUsername = "taylor-r"
-        let p = ProfileSync.applying(["venmo_username": .null, "notify_paid": .bool(false), "display_name": .string("Tay R")], to: withVenmo)
+        let p = ProfileSync.applying(["venmo_username": .null, "notify_paid": .bool(false), "display_name": .string("Tay R")],
+                                     to: Self.with { $0.venmoUsername = "taylor-r" })
         #expect(p.venmoUsername == nil)
         #expect(p.notifyPaid == false)
         #expect(p.displayName == "Tay R")

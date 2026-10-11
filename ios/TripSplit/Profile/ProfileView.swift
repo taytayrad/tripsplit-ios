@@ -16,9 +16,7 @@ struct ProfileView: View {
         NavigationStack {
             List {
                 Section {
-                    NavigationLink { NameView(name: app.profile?.displayName ?? "") { name in
-                        save(["display_name": .string(name)], apply: { app.profile?.displayName = name })
-                    } } label: {
+                    NavigationLink { NameView(name: app.profile?.displayName ?? "") { name in save(["display_name": .string(name)]) } } label: {
                         VStack(alignment: .leading, spacing: Spacing.xxs) {
                             Text(app.profile?.displayName.nilIfEmpty.map(PersonName.shown) ?? "Add your name").font(.headline)
                             Text("Signed in with Apple").font(.footnote).foregroundStyle(Color.tsSecondary)
@@ -31,7 +29,7 @@ struct ProfileView: View {
                 Section {
                     NavigationLink {
                         VenmoView(username: app.profile?.venmoUsername) { name in
-                            save(["venmo_username": name.map(AnyJSON.string) ?? .null], apply: { app.profile?.venmoUsername = name })
+                            save(["venmo_username": name.map(AnyJSON.string) ?? .null])
                         }
                     } label: {
                         LabeledContent("Venmo", value: app.profile?.venmoUsername.map { "@\($0)" } ?? "Add")
@@ -109,24 +107,21 @@ struct ProfileView: View {
         permission = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
-    /// `apply` shows the change at once. If the save fails, AppModel puts the confirmed value back (`ProfileSync`),
-    /// and Retry applies the change again.
-    private func save(_ fields: [String: AnyJSON], apply: (() -> Void)? = nil) {
-        apply?()
+    /// The change shows at once (`ProfileSync`); if its save fails, it drops back to the saved value and Retry
+    /// saves it again.
+    private func save(_ fields: [String: AnyJSON]) {
         Task {
             do { try await app.updateProfile(fields) }
-            catch { failedSave = { save(fields, apply: apply) } }
+            catch { failedSave = { save(fields) } }
         }
     }
 
-    private func payMethod(_ key: WritableKeyPath<Profile, Bool>, _ column: String) -> Binding<Bool> {
-        .init(get: { app.profile?[keyPath: key] ?? false },
-              set: { new in save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }) })
+    private func payMethod(_ key: KeyPath<Profile, Bool>, _ column: String) -> Binding<Bool> {
+        .init(get: { app.profile?[keyPath: key] ?? false }, set: { save([column: .bool($0)]) })
     }
 
-    private func notify(_ key: WritableKeyPath<Profile, Bool?>, _ column: String) -> Binding<Bool> {
-        .init(get: { app.profile?[keyPath: key] ?? true },
-              set: { new in save([column: .bool(new)], apply: { app.profile?[keyPath: key] = new }) })
+    private func notify(_ key: KeyPath<Profile, Bool?>, _ column: String) -> Binding<Bool> {
+        .init(get: { app.profile?[keyPath: key] ?? true }, set: { save([column: .bool($0)]) })
     }
 }
 

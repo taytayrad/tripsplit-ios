@@ -10,11 +10,8 @@ final class AppModel {
     enum Stage: Equatable { case loading, signedOut, notifications, payMethods, ready }
 
     var stage: Stage = .loading
-    /// Your profile as shown. Autosaves change it first; `profileSync` keeps it consistent with the server.
-    var profile: Profile? {
-        get { profileSync.shown }
-        set { profileSync.shown = newValue }
-    }
+    /// Your profile as shown: the server's, with any edits still saving laid on top (`ProfileSync`).
+    var profile: Profile? { profileSync.shown }
     private var profileSync = ProfileSync()
     var trips: [Trip] = []
     /// Every suggested payment on your trips. Tickets, member amounts, and "Everyone's settled" come from these.
@@ -148,12 +145,12 @@ final class AppModel {
     }
 
     /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
-    /// `profiles` columns you may update (docs/permissions.md). Show the change first (set `profile`), then call this.
-    /// Saves run one after another, in the order they were made, so the latest choice is the one saved. A failure
-    /// puts the server's confirmed values back on screen when it's the newest save (`ProfileSync`).
+    /// `profiles` columns you may update (docs/permissions.md). The change shows at once (`ProfileSync`). Saves run
+    /// one after another, in the order they were made, so the latest choice is the one saved. Throws only when the
+    /// failure still matters: a newer pending save that rewrites the same fields makes an older failure moot.
     func updateProfile(_ fields: [String: AnyJSON]) async throws {
         guard let id = userId else { return }
-        let saveId = profileSync.begin()
+        let saveId = profileSync.begin(fields)
         let previous = profileSave
         let save = Task {
             _ = await previous?.result
@@ -161,14 +158,11 @@ final class AppModel {
         }
         profileSave = save
         do { try await save.value } catch {
-            // Only the newest save reports a failure. An older one is overtaken: retrying it would put back a choice
-            // you've since changed, and the newer save's reload shows what the server has.
-            profileSync.failed(saveId)
-            guard saveId == profileSync.latestSave else { return }
-            throw error
+            if profileSync.failed(saveId) { throw error }
+            return
         }
-        profileSync.saved(fields)
-        if saveId == profileSync.latestSave { await loadProfile() }
+        profileSync.saved(saveId)
+        if profileSync.isSettled { await loadProfile() }
     }
 
     // MARK: Data
