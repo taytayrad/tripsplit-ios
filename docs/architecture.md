@@ -39,7 +39,7 @@ flowchart TB
         auth["Auth<br/>Sign in with Apple (no phone)"]
         db[("Postgres<br/>tables, RLS, RPC functions,<br/>pair_balances view")]
         rt["Realtime<br/>row change streams"]
-        fnPush["Edge function: push (Phase 5, not built yet)<br/>activity event → APNs"]
+        fnPush["Edge function: push<br/>activity event → APNs"]
     end
 
     invitePage["Static invite page (GitHub Pages)<br/>site/join/: opens the app, or Get TripSplit button"]
@@ -62,7 +62,7 @@ flowchart TB
 | **iOS app** | All UI. Holds no money logic beyond formatting and live split previews; saved shares and balances come from the server. |
 | **Postgres** | Source of truth. RPC functions own every money write (split → shares, payments per trip, removing only at $0). The `member_nets` view and `suggested_payments` own every balance read. RLS limits rows to the caller's trips. |
 | **Realtime** | Pushes row changes so every member's screens update in close to real time. |
-| **Edge function: push** (Phase 5, not built yet) | On each `activity_events` insert, finds affected members (event matrix in [`events.md`](events.md)), checks their preferences, skips the actor, sends APNs. |
+| **Edge function: push** | A Vault-authenticated webhook on each committed activity insert calls `push_recipients` with the service role and sends per-recipient Activity wording to APNs. Learns each token's sandbox/production host; removes rejected registrations. [Setup and device verification](push-setup.md). |
 | **Static invite page** | `site/join/index.html`, hosted free on GitHub Pages (Supabase's functions domain forces text/plain, so an edge function can't serve it). Kept in sync by hand with the `taytayrad/tripsplit-invite` Pages repo. Reads the token from the URL fragment and opens `tripsplit://join/:token`. Stands in for Universal Links until there's a domain. After an App Store install, the user may need to tap the link again. |
 
 ## Key choices

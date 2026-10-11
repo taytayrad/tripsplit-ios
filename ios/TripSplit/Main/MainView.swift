@@ -2,16 +2,32 @@ import SwiftUI
 
 struct MainView: View {
     @Environment(AppModel.self) private var app
+    @State private var selectedTab = 0
+    @State private var activityPath: [ActivityEvent.Target] = []
+    @State private var navigationReset = 0
 
     var body: some View {
         @Bindable var app = app
-        TabView {
-            TripsView().tabItem { Label("Trips", systemImage: "suitcase") }
-            ActivityView().tabItem { Label("Activity", systemImage: "clock") }
-            ProfileView().tabItem { Label("Profile", systemImage: "person.crop.circle") }
+        TabView(selection: $selectedTab) {
+            TripsView().id(navigationReset).tabItem { Label("Trips", systemImage: "suitcase") }.tag(0)
+            ActivityView(path: $activityPath).id(navigationReset).tabItem { Label("Activity", systemImage: "clock") }.tag(1)
+            ProfileView().tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag(2)
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
         .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
+        .task(id: app.pushEventId) {
+            guard let id = app.pushEventId else { return }
+            let user = app.userId
+            let target = await app.notificationTarget(id)
+            guard !Task.isCancelled, app.stage == .ready, app.userId == user, app.pushEventId == id else { return }
+            app.expenseSheet = nil
+            app.welcomeTrip = nil
+            // Reset Trips and Activity details, search, and sheets before opening the notification's destination.
+            navigationReset += 1
+            activityPath = target == .activity ? [] : [target]
+            selectedTab = 1
+            app.pushEventId = nil
+        }
     }
 }
 

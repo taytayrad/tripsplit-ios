@@ -325,6 +325,8 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 
 - **App icons (TRIP-30, approved 2026-10-10):** the passport stamp collection is the app icon. D1 (red plane behind a larger blue road ticket) is the default for TestFlight and the App Store. Profile › App icon also offers D2 (larger purple plane, smaller teal road), D3 (small round teal plane, larger blue road ticket), and D4 (blue plane, red road, small teal sun). Each stamp uses one ink; the collection may use several inks. Icons contain no letters or words, stay inside their square, and use light, dark, and grayscale tinted appearances. This choice belongs to the iPhone and is kept by iOS; it doesn’t change a trip’s stamp or sync to friends.
 
+- **APNs delivery (TRIP-25):** each committed push-eligible activity insert calls the server's push sender through a webhook authenticated with a dedicated secret in Vault. It sends the recipient's Activity statement and dollar line, using the existing recipient/preference rules. The sender learns sandbox versus production on the first successful send; re-registering the same token retains that state; a new token or owner starts unclassified. Push enqueue failures are logged and do not block expense or payment saves. Invalid tokens are removed only while their owner and registration still match. Live delivery needs APNs secrets and the two-device pass in `docs/push-setup.md`; the beta uses one webhook attempt per event without a durable retry queue.
+
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.
 
@@ -344,3 +346,5 @@ Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. Wh
 ### Assumed in the prototype, not yet confirmed
 - The welcome modal also appears when someone who already has the app taps an invite link.
 - Being shown as allowed is the only notification state that's designed. The case where iOS permission was denied isn't.
+
+- **Notification taps (TRIP-25, N1–N9):** someone joining, someone paying you, a payment removed, and a trip restored open that trip’s Details. Expense added, updated, deleted, and restored open that expense’s Details (including the deleted state). Trip deleted opens Activity. A notification opens after sign-in/onboarding, checks current account access, and falls back to Activity if the destination is unavailable. These routes do not change the Activity feed’s row taps.

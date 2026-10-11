@@ -1,6 +1,6 @@
 # Data model
 
-The Supabase Postgres schema, implemented through Phase 3, plus Phase 5's `device_tokens` writes (the app upserts this phone's APNs token while notifications are allowed, and deletes it at sign-out; the `push` function arrives later in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
+The Supabase Postgres schema, implemented through Phase 3, plus Phase 5's token registration and APNs sender. The app registers this phone's token while notifications are allowed and deletes it at sign-out; the sender learns its APNs environment and removes invalid registrations. **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
 erDiagram
@@ -100,6 +100,7 @@ erDiagram
         uuid user_id PK
         text token PK
         timestamptz updated_at
+        text apns_environment "nullable until classified; sandbox | production"
     }
 ```
 
