@@ -78,12 +78,13 @@ struct NotificationsView: View {
 
 struct PayMethodsView: View {
     @Environment(AppModel.self) private var app
-    @State private var venmo = true
     @State private var zelle = false
     @State private var appleCash = false
-    @State private var venmoUsername = ""
+    /// Set on the Venmo screen; nil means no Venmo.
+    @State private var venmoUsername: String?
 
     var body: some View {
+        NavigationStack {
         VStack(spacing: Spacing.lg) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 Text("How do you get paid?").font(.largeTitle.bold())
@@ -93,22 +94,19 @@ struct PayMethodsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal, .top], Spacing.lg)
             Form {
+                // Figma Profile [F8]: Venmo is one row whose value is the username, like Profile.
                 Section {
-                    CheckRow(title: "Venmo", isOn: $venmo)
+                    NavigationLink { VenmoView(username: venmoUsername) { venmoUsername = $0 } } label: {
+                        LabeledContent("Venmo", value: venmoUsername.map { "@\($0)" } ?? "Add")
+                    }
                     CheckRow(title: "Zelle", isOn: $zelle)
                     CheckRow(title: "Apple Cash", isOn: $appleCash)
-                }
-                if venmo {
-                    Section("Venmo username") {
-                        TextField("@username", text: $venmoUsername)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
             VStack(spacing: Spacing.sm) {
                 Button("Continue") {
-                    Task { await app.savePayMethods(venmo: venmo ? venmoUsername : nil, zelle: zelle, appleCash: appleCash) }
+                    Task { await app.savePayMethods(venmo: venmoUsername, zelle: zelle, appleCash: appleCash) }
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 Button("Skip for now") { Task { await app.finishOnboarding() } }.foregroundStyle(Color.accentColor)
@@ -117,5 +115,7 @@ struct PayMethodsView: View {
         }
         .padding(.bottom, Spacing.lg)
         .background(Color(.systemGroupedBackground))
+        .toolbar(.hidden, for: .navigationBar)
+        }
     }
 }

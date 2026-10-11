@@ -8,7 +8,7 @@ struct MainView: View {
         TabView {
             TripsView().tabItem { Label("Trips", systemImage: "suitcase") }
             ActivityView().tabItem { Label("Activity", systemImage: "clock") }
-            ProfileTab().tabItem { Label("Profile", systemImage: "person.crop.circle") }           // Phase 5 fills this in
+            ProfileView().tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
         .sheet(item: $app.expenseSheet) { ExpenseFormView(target: $0) }
@@ -69,32 +69,6 @@ private struct AddButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(noTrips ? "Add trip" : "Add expense")
-    }
-}
-
-struct ProfileTab: View {
-    @Environment(AppModel.self) private var app
-    @State private var confirmSignOut = false
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: Spacing.xxs) {
-                        Text(app.profile?.displayName.nilIfEmpty.map(PersonName.shown) ?? "You").font(.title3.weight(.semibold))
-                        Text("Signed in with Apple").font(.footnote).foregroundStyle(Color.tsSecondary)
-                    }
-                }
-                Section {
-                    Button("Sign out", role: .destructive) { confirmSignOut = true }
-                }
-            }
-            .navigationTitle("Profile")
-            .alert("Sign out of TripSplit?", isPresented: $confirmSignOut) {
-                Button("Cancel", role: .cancel) {}
-                Button("Sign out", role: .destructive) { Task { await app.signOut() } }
-            } message: { Text("Your trips and balances stay saved. Sign back in with Apple anytime.") }
-        }
     }
 }
 

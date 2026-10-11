@@ -10,7 +10,9 @@ final class AppModel {
     enum Stage: Equatable { case loading, signedOut, notifications, payMethods, ready }
 
     var stage: Stage = .loading
-    var profile: Profile?
+    /// Your profile as shown: the server's, with any edits still saving laid on top (`ProfileSync`).
+    var profile: Profile? { profileSync.shown }
+    private var profileSync = ProfileSync()
     var trips: [Trip] = []
     /// Every suggested payment on your trips. Tickets, member amounts, and "Everyone's settled" come from these.
     var settlements: [Settlement] = []
@@ -44,6 +46,8 @@ final class AppModel {
     private var realtime: RealtimeChannelV2?
     private var realtimeSubscriptions: [RealtimeSubscription] = []  // dropping a token removes its callback
     private var refreshTask: Task<Void, Never>?
+    /// The latest profile save; the next one waits for it.
+    private var profileSave: Task<Void, Error>?
 
     private let db = Backend.client
 
@@ -67,7 +71,7 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profile = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
+                profileSync.reset(); profileSave = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
@@ -123,7 +127,7 @@ final class AppModel {
 
     func savePayMethods(venmo: String?, zelle: Bool, appleCash: Bool) async {
         guard let id = userId else { return }
-        let venmo = venmo?.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        let venmo = venmo.map(VenmoName.clean)
         do {
             try await db.from("profiles").update(PayMethodsUpdate(venmo_username: venmo?.isEmpty == false ? venmo : nil,
                                                         has_zelle: zelle, has_apple_cash: appleCash))
@@ -140,11 +144,36 @@ final class AppModel {
         await joinPendingInvite()
     }
 
+    /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
+    /// `profiles` columns you may update (docs/permissions.md). The change shows at once (`ProfileSync`). Saves run
+    /// one after another, in the order they were made, so the latest choice is the one saved. Throws only when the
+    /// failure still matters: a newer pending save that rewrites the same fields makes an older failure moot.
+    func updateProfile(_ fields: [String: AnyJSON]) async throws {
+        guard let id = userId else { return }
+        let saveId = profileSync.begin(fields)
+        let previous = profileSave
+        let save = Task {
+            _ = await previous?.result
+            try await db.from("profiles").update(fields).eq("id", value: id).run()
+        }
+        profileSave = save
+        do { try await save.value } catch {
+            if profileSync.failed(saveId) { throw error }
+            return
+        }
+        profileSync.saved(saveId)
+        if profileSync.isSettled { await loadProfile() }
+    }
+
     // MARK: Data
 
     func loadProfile() async {
         guard let id = userId else { return }
-        profile = try? await db.from("profiles").select().eq("id", value: id).single().value()
+        let startedAt = profileSync.epoch
+        // A failed load (offline) keeps the profile you had; a load overtaken by a newer save is dropped.
+        if let loaded: Profile = try? await db.from("profiles").select().eq("id", value: id).single().value() {
+            profileSync.loaded(loaded, startedAt: startedAt)
+        }
     }
 
     func refresh() async {
@@ -160,7 +189,7 @@ final class AppModel {
                 try self.db.rpc("my_trip_nets").order("trip_id").range(from: from, to: to)
             }
             // Your own row too: onboarding and Profile change your pay methods, which the Payment page reads.
-            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
+            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash, notify_paid, notify_expense, notify_join, notify_trip_deleted")
                 .eq("id", value: userId ?? UUID()).single().value()
             async let p: [Profile] = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
                 .neq("id", value: userId ?? UUID()).value()
@@ -178,7 +207,10 @@ final class AppModel {
                     .order("created_at", ascending: false).order("id").range(from: from, to: to)
             }
             let tripNets: [TripNet]
-            (trips, settlements, tripNets, profile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
+            let loadedProfile: Profile?
+            let profileStartedAt = profileSync.epoch
+            (trips, settlements, tripNets, loadedProfile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
+            if let loadedProfile { profileSync.loaded(loadedProfile, startedAt: profileStartedAt) }
             activity.removeAll { $0.kind == .unknown }
             nets = Dictionary(tripNets.map { ($0.tripId, $0.cents) }, uniquingKeysWith: +)
         } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
