@@ -14,9 +14,8 @@ struct AppIconTests {
         for choice in AppIconChoice.allCases {
             #expect(UIImage(named: choice.previewName, in: bundle, compatibleWith: nil) != nil)
             let entry = choice.alternateName.flatMap { alternates[$0] as? [String: Any] } ?? primary
-            let files = try #require(entry["CFBundleIconFiles"] as? [String])
-            #expect(!files.isEmpty)
-            #expect(files.contains { UIImage(named: $0, in: bundle, compatibleWith: nil) != nil })
+            let expectedName = choice.alternateName ?? "AppIcon"
+            #expect(entry["CFBundleIconName"] as? String == expectedName)
         }
     }
 }
