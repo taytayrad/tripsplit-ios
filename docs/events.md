@@ -1,6 +1,8 @@
 # Events
 
-Every `activity_events.kind`: how it reads in Activity, its dollar line, and who gets a push. The push edge function implements this table. Never notify the actor about their own action.
+Every `activity_events.kind`: how it reads in Activity, its dollar line, and who gets a push. `push_recipients(event)` implements the "Push to" and "Preference" columns (TRIP-24, tested in `013_push_recipients`); the push edge function sends to those people (TRIP-25). Never notify the actor about their own action.
+
+**What a push says** ([Figma › Push notifications](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=316-1638), N1–N9): it's written for the person getting it. The bold title is their Activity statement ("Sammy paid you in "Orlando 2027"", never "Sammy paid Connor"), and the body is their dollar line, left off when there is none.
 
 **Delta** = the event's change to a person's trip net, snapshotted at write time (`activity_events.deltas`).
 
