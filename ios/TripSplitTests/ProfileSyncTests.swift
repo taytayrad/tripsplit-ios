@@ -9,17 +9,32 @@ struct ProfileSyncTests {
 
     func loadedSync() -> ProfileSync {
         var sync = ProfileSync()
-        sync.loaded(Self.base, startedAt: sync.generation)
+        sync.loaded(Self.base, startedAt: sync.epoch)
         return sync
     }
 
     @Test func aLoadOvertakenByANewerSaveIsDropped() {
         var sync = loadedSync()
-        let loadStarted = sync.generation
+        let loadStarted = sync.epoch
         sync.shown?.hasZelle = true; _ = sync.begin()  // you tap Zelle while an older load is in flight
         var stale = Self.base; stale.hasZelle = false
         sync.loaded(stale, startedAt: loadStarted)
         #expect(sync.shown?.hasZelle == true)
+    }
+
+    /// Second review: a refresh that started while the save was pending reads the old value and comes back after
+    /// the post-save reload. It's dropped; the save finishing moved the epoch on.
+    @Test func aReadBegunDuringAPendingSaveIsDropped() {
+        var sync = loadedSync()  // Zelle off
+        sync.shown?.hasZelle = true; _ = sync.begin()
+        let refreshStarted = sync.epoch  // a foreground refresh starts while the PATCH is pending
+        sync.saved(["has_zelle": .bool(true)])
+        var after = Self.base; after.hasZelle = true
+        sync.loaded(after, startedAt: sync.epoch)  // the post-save reload
+        var before = Self.base; before.hasZelle = false
+        sync.loaded(before, startedAt: refreshStarted)  // the earlier refresh lands last
+        #expect(sync.shown?.hasZelle == true)
+        #expect(sync.confirmed?.hasZelle == true)
     }
 
     @Test func overlappingFailuresRestoreTheConfirmedValue() {

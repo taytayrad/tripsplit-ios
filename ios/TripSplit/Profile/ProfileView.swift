@@ -16,7 +16,9 @@ struct ProfileView: View {
         NavigationStack {
             List {
                 Section {
-                    NavigationLink { NameView(name: app.profile?.displayName ?? "") { name in save(["display_name": .string(name)]) } } label: {
+                    NavigationLink { NameView(name: app.profile?.displayName ?? "") { name in
+                        save(["display_name": .string(name)], apply: { app.profile?.displayName = name })
+                    } } label: {
                         VStack(alignment: .leading, spacing: Spacing.xxs) {
                             Text(app.profile?.displayName.nilIfEmpty.map(PersonName.shown) ?? "Add your name").font(.headline)
                             Text("Signed in with Apple").font(.footnote).foregroundStyle(Color.tsSecondary)
@@ -28,7 +30,9 @@ struct ProfileView: View {
 
                 Section {
                     NavigationLink {
-                        VenmoView(username: app.profile?.venmoUsername) { name in save(["venmo_username": name.map(AnyJSON.string) ?? .null]) }
+                        VenmoView(username: app.profile?.venmoUsername) { name in
+                            save(["venmo_username": name.map(AnyJSON.string) ?? .null], apply: { app.profile?.venmoUsername = name })
+                        }
                     } label: {
                         LabeledContent("Venmo", value: app.profile?.venmoUsername.map { "@\($0)" } ?? "Add")
                     }

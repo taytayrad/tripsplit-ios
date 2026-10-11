@@ -2,30 +2,36 @@ import Foundation
 import Supabase
 
 /// Your profile on screen versus what the server has confirmed, while autosaves are in flight (PR #35 review).
-/// Every save gets the next generation. Only the newest generation decides what's shown:
-/// - a load applies only if no save started while it was loading;
-/// - a successful save moves the confirmed profile forward;
-/// - a failed save resets the screen to the confirmed profile, and only when it's the newest save, so an older
-///   failure can't overwrite a newer choice.
+/// - Each save gets an id; only the newest one (`latestSave`) can reset the screen or ask to retry.
+/// - `epoch` moves on whenever a save starts or finishes. A load applies only if the epoch hasn't moved while it
+///   was loading, so a read that began before a write settled can't overwrite what came after it.
+/// - A successful save moves the confirmed profile forward; the newest save failing resets the screen to it, so an
+///   older failure can't overwrite a newer choice.
+/// Changes are shown before they're saved (set `shown`, then `begin`).
 struct ProfileSync {
     var shown: Profile?
     private(set) var confirmed: Profile?
-    private(set) var generation = 0
+    private(set) var latestSave = 0
+    private(set) var epoch = 0
 
-    /// A save is starting (after its change is already shown).
-    mutating func begin() -> Int { generation += 1; return generation }
+    mutating func begin() -> Int {
+        latestSave += 1; epoch += 1
+        return latestSave
+    }
 
     mutating func saved(_ fields: [String: AnyJSON]) {
+        epoch += 1
         confirmed = confirmed.map { Self.applying(fields, to: $0) }
     }
 
     mutating func failed(_ save: Int) {
-        if save == generation, let confirmed { shown = confirmed }
+        epoch += 1
+        if save == latestSave, let confirmed { shown = confirmed }
     }
 
-    /// A load that started at generation `startedAt` came back.
+    /// A load that started at `startedAt` (the epoch then) came back.
     mutating func loaded(_ profile: Profile, startedAt: Int) {
-        guard startedAt == generation else { return }
+        guard startedAt == epoch else { return }
         confirmed = profile
         shown = profile
     }

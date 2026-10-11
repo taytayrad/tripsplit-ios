@@ -153,7 +153,7 @@ final class AppModel {
     /// puts the server's confirmed values back on screen when it's the newest save (`ProfileSync`).
     func updateProfile(_ fields: [String: AnyJSON]) async throws {
         guard let id = userId else { return }
-        let generation = profileSync.begin()
+        let saveId = profileSync.begin()
         let previous = profileSave
         let save = Task {
             _ = await previous?.result
@@ -163,19 +163,19 @@ final class AppModel {
         do { try await save.value } catch {
             // Only the newest save reports a failure. An older one is overtaken: retrying it would put back a choice
             // you've since changed, and the newer save's reload shows what the server has.
-            guard generation == profileSync.generation else { return }
-            profileSync.failed(generation)
+            profileSync.failed(saveId)
+            guard saveId == profileSync.latestSave else { return }
             throw error
         }
         profileSync.saved(fields)
-        if generation == profileSync.generation { await loadProfile() }
+        if saveId == profileSync.latestSave { await loadProfile() }
     }
 
     // MARK: Data
 
     func loadProfile() async {
         guard let id = userId else { return }
-        let startedAt = profileSync.generation
+        let startedAt = profileSync.epoch
         // A failed load (offline) keeps the profile you had; a load overtaken by a newer save is dropped.
         if let loaded: Profile = try? await db.from("profiles").select().eq("id", value: id).single().value() {
             profileSync.loaded(loaded, startedAt: startedAt)
@@ -214,7 +214,7 @@ final class AppModel {
             }
             let tripNets: [TripNet]
             let loadedProfile: Profile?
-            let profileStartedAt = profileSync.generation
+            let profileStartedAt = profileSync.epoch
             (trips, settlements, tripNets, loadedProfile, people, expenses, payments, activity) = try await (t, s, n, me, p, e, pay, events)
             if let loadedProfile { profileSync.loaded(loadedProfile, startedAt: profileStartedAt) }
             activity.removeAll { $0.kind == .unknown }
