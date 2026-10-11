@@ -289,7 +289,7 @@ final class AppModel {
     func notificationTarget(_ id: UUID) async -> ActivityEvent.Target {
         await refresh()
         do {
-            // Read with this account's RLS, including a deleted event's expense. Never trust destination ids in a push.
+            // refresh() keeps cached activity on failure; recheck this event's RLS before routing a push.
             let rows: [ActivityEvent] = try await db.from("activity_events").select(ActivityQuery.columns)
                 .eq("id", value: id).value()
             return rows.first?.notificationTarget(expenses: Set(expenses.map(\.id)), trips: Set(trips.map(\.id))) ?? .activity

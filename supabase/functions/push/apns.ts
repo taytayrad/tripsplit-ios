@@ -46,6 +46,9 @@ export function providerToken(
         return `${unsigned}.${base64url(new Uint8Array(signature))}`;
       })();
       cached = { issued, value };
+      void value.catch(() => {
+        if (cached?.value === value) cached = undefined;
+      });
     }
     return cached.value;
   };

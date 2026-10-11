@@ -64,7 +64,7 @@ Use two different signed-in members with notifications allowed; keep the receivi
    were the person who logged it.
 4. A deletes the trip, then restores it from Activity. B receives both statements, with no dollar body.
 5. Check an Xcode-installed build and a TestFlight build. After a successful send, `device_tokens.apns_environment`
-   is `sandbox` and `production` respectively. A fresh registration clears it until the next send.
+   is `sandbox` and `production` respectively. Re-registering the same token keeps it; a new token or owner starts unclassified until the next send.
 
 6. Tap each N1–N9 notification and check its destination in `events.md`. Check a background tap and a tap after quitting the app. Expense-deleted taps must show the deleted expense’s details; trip-deleted taps must open Activity. Repeat a tap while another detail/form is open and after a trip is no longer accessible. Use new notifications: older banners have no routing ID.
 

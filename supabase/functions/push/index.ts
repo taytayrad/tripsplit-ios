@@ -20,9 +20,14 @@ Deno.serve(async (request) => {
         required("APNS_TEAM_ID"),
       ),
     };
-    return await handlePush(request, config);
   } catch (error) {
     console.error("push configuration", String(error));
     return Response.json({ error: "Push is not configured" }, { status: 503 });
+  }
+  try {
+    return await handlePush(request, config);
+  } catch (error) {
+    console.error("push request", String(error));
+    return Response.json({ error: "Push request failed" }, { status: 500 });
   }
 });

@@ -98,14 +98,16 @@ export async function handlePush(
     // Read the canonical row. A webhook supplies only its id; it cannot supply banner wording or recipients.
     const columns =
       "id,kind,actor_id,subject,deltas,expense_payer_id,expense_amount_cents,expense_payer_share_cents,actor:profiles!activity_events_actor_id_fkey(display_name),trips!activity_events_trip_id_fkey(name),payments(payer_id,payee_id,amount_cents,payer:profiles!payments_payer_id_fkey(display_name),payee:profiles!payments_payee_id_fkey(display_name))";
-    const [e] = await db<EventRow[]>(
-      `activity_events?id=eq.${eventId}&select=${encodeURIComponent(columns)}`,
-    );
+    const [[e], recipients] = await Promise.all([
+      db<EventRow[]>(
+        `activity_events?id=eq.${eventId}&select=${encodeURIComponent(columns)}`,
+      ),
+      db<string[]>("rpc/push_recipients", {
+        method: "POST",
+        body: JSON.stringify({ p_event: eventId }),
+      }),
+    ]);
     if (!e) return Response.json({ sent: 0 });
-    const recipients = await db<string[]>("rpc/push_recipients", {
-      method: "POST",
-      body: JSON.stringify({ p_event: eventId }),
-    });
     // Actor exclusion is also enforced by the SQL function; retain it at the delivery boundary.
     const ids = recipients.filter((id) => id !== e.actor_id);
     if (!ids.length) return Response.json({ sent: 0 });

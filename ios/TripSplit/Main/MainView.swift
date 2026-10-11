@@ -4,13 +4,13 @@ struct MainView: View {
     @Environment(AppModel.self) private var app
     @State private var selectedTab = 0
     @State private var activityPath: [ActivityEvent.Target] = []
-    @State private var activityRoot = 0
+    @State private var navigationReset = 0
 
     var body: some View {
         @Bindable var app = app
         TabView(selection: $selectedTab) {
-            TripsView().tabItem { Label("Trips", systemImage: "suitcase") }.tag(0)
-            ActivityView(path: $activityPath).id(activityRoot).tabItem { Label("Activity", systemImage: "clock") }.tag(1)
+            TripsView().id(navigationReset).tabItem { Label("Trips", systemImage: "suitcase") }.tag(0)
+            ActivityView(path: $activityPath).id(navigationReset).tabItem { Label("Activity", systemImage: "clock") }.tag(1)
             ProfileView().tabItem { Label("Profile", systemImage: "person.crop.circle") }.tag(2)
         }
         .sheet(item: $app.welcomeTrip) { WelcomeSheet(trip: $0) }
@@ -22,8 +22,8 @@ struct MainView: View {
             guard !Task.isCancelled, app.stage == .ready, app.userId == user, app.pushEventId == id else { return }
             app.expenseSheet = nil
             app.welcomeTrip = nil
-            // Reset search, old details, and sheets before opening the notification's destination.
-            activityRoot += 1
+            // Reset Trips and Activity details, search, and sheets before opening the notification's destination.
+            navigationReset += 1
             activityPath = target == .activity ? [] : [target]
             selectedTab = 1
             app.pushEventId = nil

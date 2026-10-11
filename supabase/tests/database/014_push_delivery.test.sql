@@ -1,7 +1,7 @@
 -- Webhook setup and routing state. Everything rolls back, including pg_net's queue: no live APNs calls.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(16);
 select tests.users('you', 'jo');
 delete from vault.secrets where name in ('push_function_url', 'push_webhook_secret');
 create temporary table initial_queue as select count(*) n from net.http_request_queue;
@@ -35,7 +35,11 @@ select throws_ok($$ update public.device_tokens set apns_environment = 'producti
                  '42501', null, 'clients cannot choose a host directly');
 select public.register_device_token('phone');
 select tests.clear_authentication();
-select is((select apns_environment from public.device_tokens where token = 'phone'), null, 're-registration clears the learned environment');
+select is((select apns_environment from public.device_tokens where token = 'phone'), 'sandbox', 'same-token registration keeps the learned environment');
+select tests.authenticate_as(tests.id('you'));
+select public.register_device_token('new-phone');
+select tests.clear_authentication();
+select is((select apns_environment from public.device_tokens where token = 'new-phone'), null, 'a new token starts unclassified');
 select throws_ok($$ update public.device_tokens set apns_environment = 'invalid' where token = 'phone' $$,
                  '23514', null, 'only sandbox and production are allowed');
 update public.device_tokens set apns_environment = 'sandbox' where token = 'phone';
@@ -43,7 +47,18 @@ select tests.authenticate_as(tests.id('jo'));
 select public.register_device_token('phone');
 select tests.clear_authentication();
 select is((select user_id from public.device_tokens where token = 'phone'), tests.id('jo'), 'account takeover still leaves one owner');
+select is((select apns_environment from public.device_tokens where token = 'phone'), null, 'a new owner starts unclassified');
 select tests.authenticate_as(tests.id('jo'));
 select throws_ok($$ select private.push_activity_event() $$, '42501', null, 'clients cannot invoke the privileged webhook trigger');
+-- Feed-only kinds must not enqueue a push, even when Vault is configured.
+create temporary table before_feed_only as select count(*) n from net.http_request_queue;
+select tests.trip('feed only', array['you']);
+select tests.clear_authentication();
+insert into public.activity_events(trip_id, kind, actor_id, subject)
+values (tests.id('feed only'), 'member_removed', tests.id('you'), 'Jo');
+select is((select count(*) from net.http_request_queue), (select n from before_feed_only),
+          'trip_created and member_removed skip the push queue');
+select is((select count(*) from public.activity_events where trip_id = tests.id('feed only')), 2::bigint,
+          'feed-only activity rows still save');
 select * from finish();
 rollback;

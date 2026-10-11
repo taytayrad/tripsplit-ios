@@ -50,7 +50,7 @@ Profile switch for each preference: `notify_paid` "Payments with you", `notify_e
 
 ## Notification taps (N1–N9)
 
-The APNs payload contains `activity_event_id`. On tap the app waits for sign-in/onboarding, refreshes, and reads that event with the signed-in account’s RLS. It opens the existing screen from the Activity tab, clearing old details, search, and sheets. An unavailable event or destination falls back to Activity; a deleted expense uses its existing deleted detail state.
+The APNs payload contains `activity_event_id`. On tap the app waits for sign-in/onboarding, refreshes, and reads that event with the signed-in account’s RLS. It opens the existing screen from the Activity tab, clearing old details, search, and sheets in both Trips and Activity. An unavailable event or destination falls back to Activity; a deleted expense uses its existing deleted detail state.
 
 | Push | Kind | Destination |
 |---|---|---|

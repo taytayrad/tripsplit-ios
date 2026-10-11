@@ -50,9 +50,9 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
     /// Notification taps (N1–N9) have different payment/deleted-trip destinations from Activity row taps.
     func notificationTarget(expenses: Set<UUID>, trips: Set<UUID>) -> Target {
         switch kind {
-        case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored:
-            return expenseId.flatMap { expenses.contains($0) ? .expense($0) : nil } ?? .activity
-        case .memberJoined, .paymentLogged, .paymentDeleted, .tripUndeleted:
+        case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored, .memberJoined, .tripUndeleted:
+            return target(expenses: expenses, trips: trips) ?? .activity
+        case .paymentLogged, .paymentDeleted:
             return trips.contains(tripId) ? .trip(tripId) : .activity
         case .tripDeleted, .tripCreated, .memberRemoved, .unknown:
             return .activity

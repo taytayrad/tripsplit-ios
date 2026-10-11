@@ -362,3 +362,26 @@ Deno.test("network and database failures are surfaced; independent devices still
   });
   equal(s.apple().length, 2);
 });
+
+Deno.test("canonical event and recipient reads start together before either completes", async () => {
+  const started = Promise.withResolvers<void>();
+  const eventRead = Promise.withResolvers<Response>();
+  const recipientRead = Promise.withResolvers<Response>();
+  const paths: string[] = [];
+  const fetcher: typeof fetch = (input) => {
+    const path = new URL(String(input)).pathname;
+    paths.push(path);
+    if (path.endsWith("/activity_events")) {
+      started.resolve();
+      return eventRead.promise;
+    }
+    return recipientRead.promise;
+  };
+  const response = handlePush(request(), config, fetcher);
+  await started.promise;
+  const readBoth = paths.includes("/rest/v1/rpc/push_recipients");
+  eventRead.resolve(Response.json([event]));
+  recipientRead.resolve(Response.json([]));
+  equal(await (await response).json(), { sent: 0 });
+  ok(readBoth, "recipient lookup must not wait for the event response");
+});
