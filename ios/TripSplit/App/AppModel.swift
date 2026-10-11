@@ -23,6 +23,8 @@ final class AppModel {
     var payments: [Payment] = []
     /// Your activity, newest first, including rows on a deleted trip.
     var activity: [ActivityEvent] = []
+    /// Retained through sign-in/onboarding when a notification launches the app.
+    var pushEventId: UUID?
     /// People you share a trip with ("On TripSplit"), with their pay methods.
     var people: [Profile] = []
     var pendingInvite: String? {
@@ -99,6 +101,7 @@ final class AppModel {
     /// it can't put the row back. If the delete fails (offline), the next account to register this phone takes the
     /// token over (`register_device_token`), so it never stays with the wrong person for long.
     func signOut() async {
+        pushEventId = nil
         signingOut = true
         defer { signingOut = false }
         await tokenSave?.value
@@ -282,6 +285,19 @@ final class AppModel {
     }
 
     func trip(_ id: UUID) -> Trip? { trips.first { $0.id == id } }
+
+    func notificationTarget(_ id: UUID) async -> ActivityEvent.Target {
+        await refresh()
+        do {
+            // Read with this account's RLS, including a deleted event's expense. Never trust destination ids in a push.
+            let rows: [ActivityEvent] = try await db.from("activity_events").select(ActivityQuery.columns)
+                .eq("id", value: id).value()
+            return rows.first?.notificationTarget(expenses: Set(expenses.map(\.id)), trips: Set(trips.map(\.id))) ?? .activity
+        } catch {
+            self.error = Self.describe("Couldn’t open the notification. Check your connection and try again.", error)
+            return .activity
+        }
+    }
     /// The trip's expenses, leaving out deleted ones (they open from Activity, not the trip's list).
     func expenses(on trip: UUID) -> [Expense] { expenses.filter { $0.tripId == trip && $0.deletedAt == nil } }
     func payments(on trip: UUID) -> [Payment] { payments.filter { $0.tripId == trip } }

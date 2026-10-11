@@ -170,6 +170,7 @@ Deno.test("expense delivers canonical recipient copy with APNs alert headers and
       },
       sound: "default",
     },
+    activity_event_id: eventId,
   });
   equal(JSON.parse(String(s.mutations()[0].init.body)), {
     apns_environment: "production",
@@ -202,6 +203,28 @@ Deno.test("a known sandbox token goes straight to sandbox, with no dollar body f
     title: 'Connor S. deleted the trip "Coast Road"',
   });
   equal(s.mutations().length, 0);
+});
+
+Deno.test("all N1–N9 pushes carry the canonical activity id for tap routing", async () => {
+  for (const kind of [
+    "member_joined",
+    "expense_added",
+    "expense_updated",
+    "expense_deleted",
+    "expense_restored",
+    "payment_logged",
+    "payment_deleted",
+    "trip_deleted",
+    "trip_undeleted",
+  ]) {
+    const s = stub({ e: { ...event, kind } });
+    const forged = {
+      ...payload,
+      record: { id: eventId, trip_id: "untrusted", expense_id: "untrusted" },
+    };
+    equal((await handlePush(request(forged), config, s.fetcher)).status, 200);
+    equal(JSON.parse(String(s.apple()[0].init.body)).activity_event_id, eventId);
+  }
 });
 
 Deno.test("payment copy is addressed to the payee, and only selected tokens receive it", async () => {

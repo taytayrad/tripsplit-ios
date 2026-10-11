@@ -76,7 +76,10 @@ export async function sendAPNs(
         "apns-expiration": String(Math.floor(Date.now() / 1000) + 86400),
         "content-type": "application/json",
       },
-      body: JSON.stringify({ aps: { alert, sound: "default" } }),
+      body: JSON.stringify({
+        aps: { alert, sound: "default" },
+        activity_event_id: eventId,
+      }),
       signal: AbortSignal.timeout(10000),
     },
   );

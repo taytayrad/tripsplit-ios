@@ -41,4 +41,23 @@ struct ActivityTargetTests {
     func otherRowsOpenNothing(_ kind: String) throws {
         #expect(try event(kind, expense: Self.expense).target(expenses: [Self.expense], trips: [L.trip]) == nil)
     }
+
+    @Test(arguments: ["member_joined", "payment_logged", "payment_deleted", "trip_undeleted"])
+    func notificationOpensItsTrip(_ kind: String) throws {
+        #expect(try event(kind).notificationTarget(expenses: [], trips: [L.trip]) == .trip(L.trip))
+        #expect(try event(kind).notificationTarget(expenses: [], trips: []) == .activity)
+    }
+
+    @Test(arguments: ["expense_added", "expense_updated", "expense_deleted", "expense_restored"])
+    func notificationOpensItsExpenseIncludingDeleted(_ kind: String) throws {
+        #expect(try event(kind, expense: Self.expense).notificationTarget(expenses: [Self.expense], trips: [L.trip]) == .expense(Self.expense))
+        #expect(try event(kind, expense: Self.expense).notificationTarget(expenses: [], trips: [L.trip]) == .activity)
+        #expect(try event(kind).notificationTarget(expenses: [Self.expense], trips: [L.trip]) == .activity)
+    }
+
+    @Test(arguments: ["trip_deleted", "trip_created", "member_removed", "something_new"])
+    func notificationOpensActivity(_ kind: String) throws {
+        #expect(try event(kind).notificationTarget(expenses: [], trips: [L.trip]) == .activity)
+        #expect(try event(kind).notificationTarget(expenses: [], trips: []) == .activity)
+    }
 }

@@ -45,7 +45,19 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
 
     var tripDeleted: Bool { tripDeletedAt != nil }
 
-    enum Target: Equatable { case expense(UUID), trip(UUID), undelete(UUID) }
+    enum Target: Hashable { case expense(UUID), trip(UUID), undelete(UUID), activity }
+
+    /// Notification taps (N1–N9) have different payment/deleted-trip destinations from Activity row taps.
+    func notificationTarget(expenses: Set<UUID>, trips: Set<UUID>) -> Target {
+        switch kind {
+        case .expenseAdded, .expenseUpdated, .expenseDeleted, .expenseRestored:
+            return expenseId.flatMap { expenses.contains($0) ? .expense($0) : nil } ?? .activity
+        case .memberJoined, .paymentLogged, .paymentDeleted, .tripUndeleted:
+            return trips.contains(tripId) ? .trip(tripId) : .activity
+        case .tripDeleted, .tripCreated, .memberRemoved, .unknown:
+            return .activity
+        }
+    }
 
     /// What tapping this row opens (TRIP-20): an expense row opens its details (a deleted one, its deleted state);
     /// a trip or member row opens the trip. A `trip_deleted` row asks to undelete a trip that's still deleted

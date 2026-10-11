@@ -66,6 +66,8 @@ Use two different signed-in members with notifications allowed; keep the receivi
 5. Check an Xcode-installed build and a TestFlight build. After a successful send, `device_tokens.apns_environment`
    is `sandbox` and `production` respectively. A fresh registration clears it until the next send.
 
+6. Tap each N1–N9 notification and check its destination in `events.md`. Check a background tap and a tap after quitting the app. Expense-deleted taps must show the deleted expense’s details; trip-deleted taps must open Activity. Repeat a tap while another detail/form is open and after a trip is no longer accessible. Use new notifications: older banners have no routing ID.
+
 Record results in TRIP-25 before marking it complete. CI cannot establish these device results.
 
 ## Tests and troubleshooting

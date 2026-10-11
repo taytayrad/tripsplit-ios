@@ -346,3 +346,5 @@ Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. Wh
 ### Assumed in the prototype, not yet confirmed
 - The welcome modal also appears when someone who already has the app taps an invite link.
 - Being shown as allowed is the only notification state that's designed. The case where iOS permission was denied isn't.
+
+- **Notification taps (TRIP-25, N1–N9):** someone joining, someone paying you, a payment removed, and a trip restored open that trip’s Details. Expense added, updated, deleted, and restored open that expense’s Details (including the deleted state). Trip deleted opens Activity. A notification opens after sign-in/onboarding, checks current account access, and falls back to Activity if the destination is unavailable. These routes do not change the Activity feed’s row taps.

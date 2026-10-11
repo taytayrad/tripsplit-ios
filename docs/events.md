@@ -47,3 +47,21 @@ Every `activity_events.kind`: how it reads in Activity, its dollar line, and who
 The `payment_deleted` and `member_removed` sentences above are the ones Activity uses (PRD › Prototype decisions › Activity wording).
 
 Profile switch for each preference: `notify_paid` "Payments with you", `notify_expense` "Expenses that affect you", `notify_join` "Someone joins your trip", `notify_trip_deleted` "Someone deletes or restores a trip".
+
+## Notification taps (N1–N9)
+
+The APNs payload contains `activity_event_id`. On tap the app waits for sign-in/onboarding, refreshes, and reads that event with the signed-in account’s RLS. It opens the existing screen from the Activity tab, clearing old details, search, and sheets. An unavailable event or destination falls back to Activity; a deleted expense uses its existing deleted detail state.
+
+| Push | Kind | Destination |
+|---|---|---|
+| N1 Someone joined | `member_joined` | Trip Details for that trip |
+| N2 Expense added | `expense_added` | Expense Details for that expense |
+| N3 Expense updated | `expense_updated` | Expense Details for that expense |
+| N4 Expense deleted | `expense_deleted` | Expense Details for that expense |
+| N5 Expense restored | `expense_restored` | Expense Details for that expense |
+| N6 Someone paid you | `payment_logged` | Trip Details for that trip |
+| N7 Payment removed | `payment_deleted` | Trip Details for that trip |
+| N8 Trip deleted | `trip_deleted` | Activity, even if subsequently restored |
+| N9 Trip restored | `trip_undeleted` | Trip Details for that trip |
+
+Activity row taps retain their own rules above. Notifications delivered before this payload change have no event ID and simply open the app.
