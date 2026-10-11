@@ -23,8 +23,9 @@ prd.md          product requirements + decision log
 | 3. Expenses | Expense form, four splits, edit and delete, live updates | 2 |
 | 4. Balances and settling | Balance chip, Your Balance, person screen, logging payments (superseded by 7) | 3 |
 | 5. Activity and notifications | Feed, undelete, push, Profile | 4 |
-| 6. Hardening and beta | Failure states, accessibility, TestFlight | 5 |
+| 6. Hardening and beta | Motion foundation, failure states, accessibility, dark mode, TestFlight, 5-friend beta | 5 |
 | 7. Net model | One net per member per trip, Settle up and Payment pages, settled-before-leaving | 4 |
+| 8. Delight | Whimsy on the motion foundation, shaped by beta feedback | 6 |
 
 A **parallel track** runs alongside: user testing the Figma prototype during phases 0–2, so its feedback lands before phases 3–4 build those screens.
 
@@ -128,6 +129,10 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 5: Activity and notifications
 
+**Status: built** (TRIP-16 to TRIP-27; the push sender TRIP-25 is live on the hosted project and delivering between two iPhones, 2026-10-11). Two device checks remain before the exit criteria are met: turning off a notification type stops its push, and the actor gets no push for their own action. Both rules already pass in `013_push_recipients`.
+
+Built along the way: Expense details with restore (TRIP-26, TRIP-27), the Profile redesign with editable name and a single Venmo row (TRIP-22), and one-account-per-device push tokens (TRIP-23).
+
 **Build**
 - Activity feed: statements per the PRD grammar, dollar lines per `events.md`, timestamps, search, taps (expense to edit, trip to detail, a deleted trip to the undelete alert).
 - Device token registration; `push` edge function implementing the event matrix, respecting preferences and never notifying the actor.
@@ -140,7 +145,22 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ## Phase 6: Hardening and beta
 
+**Tickets** (Linear). TRIP-31, TRIP-32, TRIP-35, and TRIP-36 can start at once; TRIP-37 closes the phase.
+
+| Ticket | Depends on |
+|---|---|
+| TRIP-31 Motion and haptics foundation | — |
+| TRIP-32 Empty and failure states: Figma comps | — |
+| TRIP-33 Empty and failure states: build | TRIP-31, TRIP-32 |
+| TRIP-34 Accessibility pass | TRIP-31 |
+| TRIP-35 Dark mode pass | — |
+| TRIP-36 TestFlight setup | — |
+| TRIP-37 Beta with 5 friends | TRIP-33, TRIP-34, TRIP-35, TRIP-36 |
+
+Already done: the app icon (TRIP-30), notifications-off and Retry on Profile (TRIP-22). Delete account (TRIP-28) is required before an App Store release, not for TestFlight.
+
 **Build**
+- Motion and haptics foundation: named motion tokens, one haptics vocabulary, Reduce Motion handled in one place. No new whimsy (that's phase 8).
 - Failure and empty states: no connection, failed save with Retry, empty Activity, Settle up with everyone settled, notifications denied.
 - Accessibility: Dynamic Type up to accessibility sizes, VoiceOver labels on every amount ("You owe Alex 90 dollars"), 44 pt touch targets (the Pay button and Member Tickets especially), contrast already AA by token.
 - Dark mode pass on every screen.
@@ -170,9 +190,21 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 
 ---
 
+## Phase 8: Delight
+
+**Planned, no tickets yet.** After the beta, so friends' feedback picks which delights matter. Built on phase 6's motion and haptics foundation; each idea is comped in Figma first.
+
+- A "cancelled" postmark on fully settled trips.
+- The trip stamp's glyph picked from the trip name ("Tahoe ski" gets a mountain). Touches stamp generation in `create_trip`.
+- A passport page on Profile collecting the stamps of settled trips (new Profile section and comp).
+- Smaller touches from the 2026-10-03 brainstorm: rotating settled copy, tappable empty-state stamps, a stamp pull-to-refresh.
+
+Guardrails: never delay a money action, respect Reduce Motion, no whimsy on errors or on what you owe, stamps never contain words. The stamp slam on Settle up (phase 7) already exists.
+
+---
+
 ## Later (not in this plan)
 
-- Whimsy ideas (stamp slam, smart stamp glyphs, passport). Parked.
 - Overpaying (logging more than owed). Disallowed this pass.
 - Universal Links once there's a domain; deferred deep linking.
 - Contacts matching; currencies beyond USD; offline entry. Out of scope per the PRD.
