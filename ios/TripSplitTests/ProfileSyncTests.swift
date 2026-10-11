@@ -86,6 +86,22 @@ struct ProfileSyncTests {
         #expect(sync.shown?.hasZelle == true)
     }
 
+    /// Review 6: a save from before sign-out finishes after you've signed back in and started editing.
+    @Test func aSaveFromAnEarlierSessionChangesNothing() {
+        var sync = loaded()
+        let old = sync.begin(["has_zelle": .bool(true)])
+        sync.reset()  // sign out, then back in
+        sync.loaded(Self.base, startedAt: sync.epoch)
+        let name = sync.begin(["display_name": .string("Tay R")])
+        #expect(name != old)
+        let loadStarted = sync.epoch  // the new session's load is in flight
+        #expect(sync.failed(old) == false)  // the old failure neither matters nor touches the new edit
+        sync.saved(old)
+        #expect(sync.epoch == loadStarted)  // and doesn't drop the new session's load
+        #expect(sync.shown?.displayName == "Tay R")
+        #expect(sync.failed(name) == true)  // the new save's own failure is still reported
+    }
+
     @Test func applyingSetsColumnsIncludingNull() {
         let p = ProfileSync.applying(["venmo_username": .null, "notify_paid": .bool(false), "display_name": .string("Tay R")],
                                      to: Self.with { $0.venmoUsername = "taylor-r" })

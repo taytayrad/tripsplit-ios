@@ -19,6 +19,14 @@ struct ProfileSync {
     var shown: Profile? { pending.reduce(confirmed) { profile, save in profile.map { Self.applying(save.fields, to: $0) } } }
     var isSettled: Bool { pending.isEmpty }
 
+    /// Signed out: forget the profile and every pending edit, but keep counting save ids, so a save from before
+    /// can never be mistaken for one made after (PR #35 review). Its completion then finds nothing and changes nothing.
+    mutating func reset() {
+        confirmed = nil
+        pending = []
+        epoch += 1
+    }
+
     mutating func begin(_ fields: [String: AnyJSON]) -> Int {
         lastId += 1
         pending.append((lastId, fields))
@@ -26,16 +34,16 @@ struct ProfileSync {
     }
 
     mutating func saved(_ id: Int) {
+        guard let i = pending.firstIndex(where: { $0.id == id }) else { return }  // from an earlier session
         epoch += 1
-        guard let i = pending.firstIndex(where: { $0.id == id }) else { return }
         let fields = pending.remove(at: i).fields
         confirmed = confirmed.map { Self.applying(fields, to: $0) }
     }
 
     /// Whether the failure still matters: false when newer pending saves rewrite every field it changed.
     mutating func failed(_ id: Int) -> Bool {
+        guard let i = pending.firstIndex(where: { $0.id == id }) else { return false }  // from an earlier session
         epoch += 1
-        guard let i = pending.firstIndex(where: { $0.id == id }) else { return false }
         let fields = Set(pending.remove(at: i).fields.keys)
         let rewritten = Set(pending.filter { $0.id > id }.flatMap(\.fields.keys))
         return !fields.isSubset(of: rewritten)

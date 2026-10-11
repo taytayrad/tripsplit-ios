@@ -71,7 +71,7 @@ final class AppModel {
         for await (event, session) in db.auth.authStateChanges {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
-                profileSync = ProfileSync(); trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
+                profileSync.reset(); profileSave = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
