@@ -53,6 +53,7 @@ struct ProfileView: View {
                             Task {
                                 _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
                                 await readPermission()
+                                await app.registerForPush()
                             }
                         }
                     }

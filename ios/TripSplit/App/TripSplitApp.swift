@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TripSplitApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var app = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -9,10 +10,14 @@ struct TripSplitApp: App {
         WindowGroup {
             RootView()
                 .environment(app)
-                .task { await app.start() }
+                .task {
+                    delegate.onDeviceToken = { token in Task { await app.saveDeviceToken(token) } }
+                    await app.start()
+                }
                 .onOpenURL { url in Task { await app.open(url) } }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active, app.stage == .ready { Task { await app.refresh() } }
+                    // Also re-register: notifications may have been turned on in Settings while away.
+                    if phase == .active, app.stage == .ready { Task { await app.refresh(); await app.registerForPush() } }
                 }
         }
     }
@@ -37,4 +42,19 @@ struct RootView: View {
             Button("OK", role: .cancel) {}
         } message: { Text(app.error ?? "") }
     }
+}
+
+/// Receives the APNs token from iOS (TRIP-23). A failure (the simulator, or no network) is ignored: push is
+/// optional and nothing waits on it.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    var onDeviceToken: ((String) -> Void)?
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        onDeviceToken?(Self.hex(deviceToken))
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {}
+
+    /// APNs wants the token as lowercase hex.
+    nonisolated static func hex(_ token: Data) -> String { token.map { String(format: "%02x", $0) }.joined() }
 }

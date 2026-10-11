@@ -1,6 +1,6 @@
 # Data model
 
-The Supabase Postgres schema, implemented through Phase 3 (`push` and `device_tokens` writes arrive in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
+The Supabase Postgres schema, implemented through Phase 3, plus Phase 5's `device_tokens` writes (the app upserts this phone's APNs token while notifications are allowed, and deletes it at sign-out; the `push` function arrives later in Phase 5). **Stored** facts live in tables. **Calculated** values (every balance) are derived by query, never stored, so they can't drift. The math is in [`money-rules.md`](money-rules.md).
 
 ```mermaid
 erDiagram
@@ -136,6 +136,7 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `remove_member(trip, user)` | removes someone else, only when their net on the trip is $0 ("only members with a $0 balance can be removed"); logs `member_removed` with empty deltas |
 | `leave_trip(trip)` | removes you, only when your net is $0 ("settle up before leaving"); logs `member_removed` with you as the actor |
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
+| `register_device_token(token)` | saves this phone's APNs token for you and removes it from any other account (`token` is unique), so a phone gets one account's pushes at a time |
 
 ## Reads (calculated)
 
