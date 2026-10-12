@@ -164,7 +164,7 @@ Already done: the app icon (TRIP-30), notifications-off and Retry on Profile (TR
 - Failure and empty states: no connection, failed save with Retry, empty Activity, Settle up with everyone settled, notifications denied.
 - Accessibility: Dynamic Type up to accessibility sizes, VoiceOver labels on every amount ("You owe Alex 90 dollars"), 44 pt touch targets (the Pay button and Member Tickets especially), contrast already AA by token.
 - Dark mode pass on every screen.
-- App Store Connect, TestFlight, privacy manifest, and the App Store privacy "nutrition label" (no tracking, no phone).
+- App Store Connect, TestFlight, privacy manifest, and the App Store privacy "nutrition label" (no tracking, no phone). Upload steps: `docs/testflight.md`.
 - Run the prototype's test tasks on the real app with 5 friends.
 
 **Exit criteria**
