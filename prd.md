@@ -338,6 +338,7 @@ These came out of the Figma prototype (Flow page in the design system file) and 
   - **Couldn’t load:** only a first load with nothing saved on the phone: "Couldn’t load your trips" / "Check your connection and try again." with Retry. No stamps on errors.
   - **Empty Activity:** one stamp, "No activity yet" / "When anyone adds an expense, pays, or joins one of your trips, it shows up here."
   - **Settle up with everyone settled:** the three-stamp cluster, "You’re settled up" / "You don’t owe anyone, and nobody owes you."; the "Who do you want to settle?" title is dropped.
+  - **As built (TRIP-33):** Couldn’t load also covers Activity ("Couldn’t load your activity"). A failed refresh with something already loaded keeps it on screen silently; the old "Couldn’t load your trips. Pull to retry." alert is gone. Coming back online refreshes, and VoiceOver announces "You’re offline" when the connection drops. Every write is refused before the request while offline (the server still decides); onboarding's pay-methods save and deleting an expense keep the "Something went wrong" alert. Trips is a list, so pull to refresh no longer sticks.
 
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.

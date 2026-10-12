@@ -28,7 +28,9 @@ struct PaymentView: View {
     @State private var confirming = false
     @State private var appleCash = false
     @State private var saving = false
+    /// "What’s owed just changed": its own sentence, not the failure alert.
     @State private var error: String?
+    @State private var failure: Failure?
     @FocusState private var amountFocused: Bool
 
     init(ticket: SettleTicket, onLogged: @escaping (PaidTicket) -> Void) {
@@ -57,6 +59,10 @@ struct PaymentView: View {
 
     var body: some View {
         List {
+            if app.isOffline {
+                OfflineBanner(message: OfflineBanner.payment)
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
             Section {
                 Route(from: ticket.direction == .pay ? "You" : name, to: ticket.direction == .pay ? name : "You")
             }
@@ -112,6 +118,7 @@ struct PaymentView: View {
         .listSectionSpacing(.compact)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Payment")
+        .failureAlert($failure)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button { act() } label: {
@@ -218,7 +225,7 @@ struct PaymentView: View {
             await app.refresh()
             error = "What’s owed just changed. Go back to Settle up and try again."
         } catch {
-            self.error = AppModel.describe("Couldn’t log the payment. Check your connection and try again.", error)
+            failure = Failure(title: "Couldn’t log the payment", error: error) { await logNow(cents) }
         }
     }
 

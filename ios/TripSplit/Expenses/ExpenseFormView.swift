@@ -25,7 +25,7 @@ struct ExpenseFormView: View {
     @State private var pickingDate = false
     @State private var saving = false
     @State private var deleting: Expense?
-    @State private var error: String?
+    @State private var failure: Failure?
     @State private var loaded = false  // onAppear fires again when Paid by or Split pops; fill the form once
     @FocusState private var amountFocused: Bool
 
@@ -58,6 +58,7 @@ struct ExpenseFormView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
+                    if app.isOffline { OfflineBanner(message: OfflineBanner.expense) }
                     // Amount (Display/Amount, centered)
                     HStack(spacing: 0) {
                         Text("$")
@@ -145,10 +146,7 @@ struct ExpenseFormView: View {
             .onAppear { let first = !loaded; load(); if first, editing == nil { amountFocused = true } }
             .onChange(of: tripId) { resetSplit() }
             .deleteExpenseAlert(expense: $deleting, tripName: trip?.name ?? "", afterDelete: { dismiss() })
-            .alert("Couldn’t save", isPresented: .init(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                Button("Retry") { Task { await save() } }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text(error ?? "") }
+            .failureAlert($failure)
         }
     }
 
@@ -203,7 +201,7 @@ struct ExpenseFormView: View {
             p_inputs: members.map { SplitInput(user_id: $0.userId, value: inputs[$0.userId] ?? 0) },
             p_spent_on: DayFormat.string(date))
         do { try await app.saveExpense(args); dismiss() }
-        catch { self.error = AppModel.describe("Check your connection and try again.", error) }
+        catch { failure = Failure(title: "Couldn’t save", error: error) { await save() } }
     }
 }
 

@@ -80,6 +80,8 @@ Flow (current build) page:
 | Remove, leave confirms and blocked alerts | `.alert` over Edit trip |
 | Welcome modal | `.sheet` or centered overlay after onboarding |
 | Delete, undelete, and sign-out confirms | `.alert` |
+| A failed save (any screen) | the shared `.failureAlert` (Figma X7): the site’s title, Cancel then Retry |
+| Offline | `OfflineBanner` in the content, never an overlay (Figma X1–X6) |
 
 Sheets and alerts in Figma are drawn as full frames with a dimmed copy of the screen behind. The dim is context, not a layout to build.
 

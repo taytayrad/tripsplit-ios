@@ -35,10 +35,7 @@ struct TripFormView: View {
     @State private var removing: Member?
     @State private var confirmLeave = false
     @State private var confirmDelete = false
-    @State private var error: String?
-    @State private var errorTitle = "Couldn’t save"
-    /// What Retry in the error alert does again.
-    @State private var retry: (() async -> Void)?
+    @State private var failure: Failure?
 
     private var isAdding: Bool { if case .add = mode { true } else { false } }
     private var editing: Trip? { if case .edit(let t) = mode { t } else { created } }
@@ -184,10 +181,7 @@ struct TripFormView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) { Task { await deleteTrip() } }
             } message: { Text("Its balances stop counting. Anyone on the trip can undelete it from Activity.") }
-            .alert(errorTitle, isPresented: .init(get: { error != nil }, set: { if !$0 { error = nil } })) {
-                Button("Retry") { Task { await retry?() } }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text(error ?? "") }
+            .failureAlert($failure)
         }
     }
 
@@ -232,7 +226,6 @@ struct TripFormView: View {
         guard !saving else { return }  // a second tap before the first await would create a second trip
         saving = true; defer { saving = false }
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        retry = { await save() }
         do {
             if let t = editing {
                 try await app.updateTrip(t.id, name: trimmed, stamp: stamp == t.stamp ? nil : stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
@@ -241,19 +234,18 @@ struct TripFormView: View {
                 created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
                 openMembers()
             }
-        } catch { errorTitle = "Couldn’t save"; self.error = AppModel.describe("Check your connection and try again.", error) }
+        } catch { failure = Failure(title: "Couldn’t save", error: error) { await save() } }
     }
 
     /// Done in Add members, in the Add trip flow.
     private func finishAdding(_ trip: Trip) async {
         guard !saving else { return }
         saving = true; defer { saving = false }  // picks and navigation are locked until it's done
-        retry = { await finishAdding(trip) }
         do {
             try await addPicked(to: trip.id)
             onCreated(trip)
             dismiss()
-        } catch { errorTitle = "Couldn’t add everyone"; self.error = AppModel.describe("Check your connection and try again.", error) }
+        } catch { failure = Failure(title: "Couldn’t add everyone", error: error) { await finishAdding(trip) } }
     }
 
     /// Each person leaves `picked` as soon as they're added, so after a partial failure only the unfinished ones
@@ -308,23 +300,20 @@ struct TripFormView: View {
 
     private func remove(_ m: Member) async {
         guard let t = editing else { return }
-        retry = { await remove(m) }
         do { try await app.removeMember(m.userId, from: t.id) }
-        catch { errorTitle = "Couldn’t remove them"; self.error = AppModel.describe("Check your connection and try again.", error) }
+        catch { failure = Failure(title: "Couldn’t remove them", error: error) { await remove(m) } }
     }
 
     private func leave() async {
         guard let t = editing else { return }
-        retry = { await leave() }
         do { try await app.leaveTrip(t.id); closeGoneTrip() }
-        catch { errorTitle = "Couldn’t leave the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
+        catch { failure = Failure(title: "Couldn’t leave the trip", error: error) { await leave() } }
     }
 
     private func deleteTrip() async {
         guard let t = editing else { return }
-        retry = { await deleteTrip() }
         do { try await app.deleteTrip(t.id); closeGoneTrip() }
-        catch { errorTitle = "Couldn’t delete the trip"; self.error = AppModel.describe("Check your connection and try again.", error) }
+        catch { failure = Failure(title: "Couldn’t delete the trip", error: error) { await deleteTrip() } }
     }
 
     /// Pops the trip and closes this sheet together while the trip still renders, then refreshes, so the trip
