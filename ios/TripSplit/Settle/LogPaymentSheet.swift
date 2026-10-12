@@ -17,14 +17,17 @@ struct LogPaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var saving = false
+    /// "What you owe … just changed": its own sentence, not the failure alert.
     @State private var error: String?
+    @State private var failure: Failure?
 
     private var cents: Int? { Money.cents(from: text) }
     private var problem: String? { PaymentLimit.problem(cents: cents, max: max, direction: direction, otherName: otherName) }
 
     var body: some View {
         VStack(spacing: Spacing.sm) {
-            Text(title).font(.title3.weight(.semibold)).multilineTextAlignment(.center).padding(.top, Spacing.xl)
+            if app.isOffline { OfflineBanner(message: OfflineBanner.payment).padding(.top, Spacing.xl) }
+            Text(title).font(.title3.weight(.semibold)).multilineTextAlignment(.center).padding(.top, app.isOffline ? 0 : Spacing.xl)
             HStack(spacing: 0) {
                 Text("$")
                 TextField("0", text: $text).keyboardType(.decimalPad).fixedSize()
@@ -43,7 +46,7 @@ struct LogPaymentSheet: View {
                 Task { await log() }
             } label: {
                 if saving { ProgressView().tint(.white) }
-                else { Text(error != nil ? "Retry" : (cents ?? 0) > 0 ? "Log \(Money.string(cents ?? 0)) payment" : "Log payment") }
+                else { Text((cents ?? 0) > 0 ? "Log \(Money.string(cents ?? 0)) payment" : "Log payment") }
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(problem != nil || saving)
@@ -55,9 +58,11 @@ struct LogPaymentSheet: View {
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(saving)
         .onAppear { text = Money.plain(initialCents) }
+        .failureAlert($failure)
     }
 
     private func log() async {
+        saving = true
         defer { saving = false }
         guard let cents else { return }
         error = nil
@@ -68,7 +73,7 @@ struct LogPaymentSheet: View {
             await app.refresh()
             error = "What you owe \(otherName) just changed. Check the amount and try again."
         } catch {
-            self.error = AppModel.describe("Couldn’t log the payment. Check your connection and try again.", error)
+            failure = Failure(title: "Couldn’t log the payment", error: error) { await log() }
         }
     }
 }

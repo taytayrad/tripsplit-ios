@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Observation
 
 import Supabase
@@ -36,6 +37,14 @@ final class AppModel {
     /// Set after joining by link; drives the welcome modal.
     var welcomeTrip: Trip?
     var error: String?
+    /// No network, per `NWPathMonitor`. Writes are refused before the request (`requireOnline`); the server still
+    /// decides, since the monitor can be wrong.
+    private(set) var isOffline = false
+    private let pathMonitor = NWPathMonitor()
+    /// A refresh has succeeded since sign-in, so what's on screen is a real (possibly empty) load.
+    private(set) var loaded = false
+    /// The first load failed with nothing loaded: Trips and Activity show Couldn’t load (Figma X8).
+    private(set) var loadFailed = false
     /// Expenses on every trip you're on, newest first.
     var expenses: [Expense] = []
     /// The expense form, when it's open.
@@ -55,7 +64,7 @@ final class AppModel {
     private let db = Backend.client
 
     /// A user-facing message; Debug builds append the underlying error to speed up fixes.
-    static func describe(_ message: String, _ error: Error) -> String {
+    nonisolated static func describe(_ message: String, _ error: Error) -> String {
         #if DEBUG
         return message + "\n\n" + String(describing: error)
         #else
@@ -66,6 +75,23 @@ final class AppModel {
 
     init() {
         pendingInvite = UserDefaults.standard.string(forKey: "pendingInvite")
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let offline = path.status != .satisfied
+            Task { @MainActor in self?.setOffline(offline) }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "path-monitor"))
+    }
+
+    private func setOffline(_ offline: Bool) {
+        guard offline != isOffline else { return }
+        isOffline = offline
+        if offline { AccessibilityNotification.Announcement("You’re offline").post() }
+        else if stage == .ready { Task { await refresh() } }  // back online: catch up
+    }
+
+    /// Refuses a write before the request when there's no network (TRIP-33). The caller shows the failure alert.
+    private func requireOnline() throws {
+        if isOffline { throw URLError(.notConnectedToInternet) }
     }
 
     // MARK: Session
@@ -75,6 +101,7 @@ final class AppModel {
             guard [.initialSession, .signedIn, .signedOut].contains(event) else { continue }
             if session == nil {
                 profileSync.reset(); profileSave = nil; trips = []; expenses = []; settlements = []; nets = [:]; payments = []; people = []; activity = []
+                loaded = false; loadFailed = false
                 stage = .signedOut
                 await stopRealtime()
                 await loadInvitePreview()
@@ -198,6 +225,7 @@ final class AppModel {
     /// failure still matters: a newer pending save that rewrites the same fields makes an older failure moot.
     func updateProfile(_ fields: [String: AnyJSON]) async throws {
         guard let id = userId else { return }
+        try requireOnline()
         let saveId = profileSync.begin(fields)
         let previous = profileSave
         let save = Task {
@@ -261,7 +289,11 @@ final class AppModel {
             if let loadedProfile { profileSync.loaded(loadedProfile, startedAt: profileStartedAt) }
             activity.removeAll { $0.kind == .unknown }
             nets = Dictionary(tripNets.map { ($0.tripId, $0.cents) }, uniquingKeysWith: +)
-        } catch { self.error = Self.describe("Couldn't load your trips. Pull to retry.", error) }
+            loaded = true; loadFailed = false
+        } catch {
+            // What's on screen stays (TRIP-33). Only a first load with nothing to show becomes Couldn’t load.
+            if !loaded { loadFailed = true }
+        }
         if pendingInvite != nil, stage == .ready { await joinPendingInvite() }
         if realtime == nil, stage == .ready { await startRealtime() }
     }
@@ -351,6 +383,7 @@ final class AppModel {
     }
 
     func saveExpense(_ args: SaveExpenseArgs) async throws {
+        try requireOnline()
         let _: UUID = try await db.rpc("save_expense", params: args).value()
         lastExpenseTrip = args.p_trip
         justJoinedTrip = nil
@@ -358,12 +391,14 @@ final class AppModel {
     }
 
     func deleteExpense(_ id: UUID) async throws {
+        try requireOnline()
         try await db.rpc("delete_expense", params: ["p_expense": id]).run()
         await refresh()
     }
 
     /// Puts a deleted expense back. Refused when someone on it has left the trip, or the trip is deleted.
     func restoreExpense(_ id: UUID) async throws {
+        try requireOnline()
         try await db.rpc("restore_expense", params: ["p_expense": id]).run()
         await refresh()
     }
@@ -374,6 +409,7 @@ final class AppModel {
     /// Retrying with the same `requestId` creates nothing new. Returns the rows the server stored.
     func logPayment(with other: UUID, direction: SettleDirection, method: PayMethod, paidOn: Date, parts: [PaymentPart],
                     requestId: UUID) async throws -> [LoggedPayment] {
+        try requireOnline()
         let rows: [LoggedPayment] = try await db.rpc("log_payment", params: LogPaymentArgs(
             p_other: other, p_direction: direction == .pay ? "pay" : "record", p_method: method.rawValue,
             p_request_id: requestId, p_paid_on: DayFormat.string(paidOn), p_parts: parts)).value()
@@ -382,6 +418,7 @@ final class AppModel {
     }
 
     func deletePayment(_ id: UUID) async throws {
+        try requireOnline()
         try await db.rpc("delete_payment", params: ["p_payment": id]).run()
         await refresh()
     }
@@ -389,6 +426,7 @@ final class AppModel {
     // MARK: Trips
 
     func createTrip(name: String, stamp: StampSpec, start: Date?, end: Date?) async throws -> Trip {
+        try requireOnline()
         let id: UUID = try await db.rpc("create_trip", params: CreateTripArgs(
             p_name: name, p_stamp: stamp, p_start_date: start.map(DayFormat.string), p_end_date: end.map(DayFormat.string)
         )).value()
@@ -398,6 +436,7 @@ final class AppModel {
     }
 
     func updateTrip(_ id: UUID, name: String, stamp: StampSpec?, start: Date?, end: Date?) async throws {
+        try requireOnline()
         try await db.from("trips").update(TripDetailsUpdate(name: name, stamp: stamp, start_date: start.map(DayFormat.string), end_date: end.map(DayFormat.string)))
             .eq("id", value: id).run()
         await refresh()
@@ -406,28 +445,33 @@ final class AppModel {
     /// Deletes the trip. The caller refreshes after closing the trip's screens, so the trip doesn't vanish
     /// from under them mid-animation.
     func deleteTrip(_ id: UUID) async throws {
+        try requireOnline()
         try await db.rpc("delete_trip", params: ["p_trip": id]).run()
     }
 
     /// Brings a deleted trip back with the expenses and payments it had when it was deleted (money-rules M7).
     func undeleteTrip(_ id: UUID) async throws {
+        try requireOnline()
         try await db.rpc("undelete_trip", params: ["p_trip": id]).run()
         await refresh()
     }
 
     func addMember(_ user: UUID, to trip: UUID) async throws {
+        try requireOnline()
         try await db.rpc("add_member", params: ["p_trip": trip, "p_user": user]).run()
         await refresh()
     }
 
     /// Only someone at $0 on the trip can be removed (TRIP-14); the server refuses otherwise.
     func removeMember(_ user: UUID, from trip: UUID) async throws {
+        try requireOnline()
         try await db.rpc("remove_member", params: ["p_trip": trip, "p_user": user]).run()
         await refresh()
     }
 
     /// Leaves the trip; only at $0. Like `deleteTrip`, the caller refreshes after closing the trip's screens.
     func leaveTrip(_ trip: UUID) async throws {
+        try requireOnline()
         try await db.rpc("leave_trip", params: ["p_trip": trip]).run()
     }
 

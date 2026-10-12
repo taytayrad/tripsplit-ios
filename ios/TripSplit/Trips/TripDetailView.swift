@@ -9,6 +9,7 @@ struct TripDetailView: View {
     @State private var editing = false
     @State private var settling = false
     @State private var deletingPayment: Payment?
+    @State private var failure: Failure?
     @State private var openExpense: UUID?
 
     var body: some View {
@@ -20,6 +21,7 @@ struct TripDetailView: View {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: Spacing.md) {
+                        if app.isOffline { OfflineBanner(message: OfflineBanner.reading) }
                         HStack(spacing: Spacing.md) {
                             TripAvatar(trip: trip, size: 64)
                             Text(trip.name).font(.largeTitle.bold())
@@ -96,17 +98,18 @@ struct TripDetailView: View {
             .alert("Delete this payment?", isPresented: .init(get: { deletingPayment != nil }, set: { if !$0 { deletingPayment = nil } }),
                    presenting: deletingPayment) { p in
                 Button("Cancel", role: .cancel) {}
-                Button("Delete", role: .destructive) {
-                    Task {
-                        do { try await app.deletePayment(p.id) }
-                        catch { app.error = AppModel.describe("Couldn’t delete the payment. Check your connection and try again.", error) }
-                    }
-                }
+                Button("Delete", role: .destructive) { Task { await deletePayment(p) } }
             } message: { _ in Text("It comes off the balances on \(trip.name). Either person on a payment can delete it.") }
+            .failureAlert($failure)
         } else {
             // The trip was deleted, or you left it (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }
         }
+    }
+
+    private func deletePayment(_ p: Payment) async {
+        do { try await app.deletePayment(p.id) }
+        catch { failure = Failure(title: "Couldn’t delete the payment", error: error) { await deletePayment(p) } }
     }
 }
 

@@ -10,7 +10,7 @@ struct ProfileView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var permission: UNAuthorizationStatus?
     @State private var confirmSignOut = false
-    @State private var failedSave: (() async -> Void)?
+    @State private var failure: Failure?
 
     var body: some View {
         NavigationStack {
@@ -95,10 +95,7 @@ struct ProfileView: View {
                 Button("Cancel", role: .cancel) {}
                 Button("Sign out", role: .destructive) { Task { await app.signOut() } }
             } message: { Text("Your trips and balances stay saved. Sign back in with Apple anytime.") }
-            .alert("Couldn’t save", isPresented: .init(get: { failedSave != nil }, set: { if !$0 { failedSave = nil } })) {
-                Button("Cancel", role: .cancel) {}
-                Button("Retry") { if let retry = failedSave { Task { await retry() } } }
-            } message: { Text("Check your connection and try again.") }
+            .failureAlert($failure)
         }
     }
 
@@ -115,10 +112,12 @@ struct ProfileView: View {
     /// The change shows at once (`ProfileSync`); if its save fails, it drops back to the saved value and Retry
     /// saves it again.
     private func save(_ fields: [String: AnyJSON]) {
-        Task {
-            do { try await app.updateProfile(fields) }
-            catch { failedSave = { save(fields) } }
-        }
+        Task { await saveNow(fields) }
+    }
+
+    private func saveNow(_ fields: [String: AnyJSON]) async {
+        do { try await app.updateProfile(fields) }
+        catch { failure = Failure(title: "Couldn’t save", error: error) { await saveNow(fields) } }
     }
 
     private func payMethod(_ key: KeyPath<Profile, Bool>, _ column: String) -> Binding<Bool> {

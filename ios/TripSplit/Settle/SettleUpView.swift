@@ -32,7 +32,9 @@ struct SettleUpView: View {
             .filter { p in scope == nil || p.tripIds.contains(scope!) }
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
-                Text("Who do you want to settle?").font(.largeTitle.bold())
+                let everyoneSettled = tickets.isEmpty && settledHere.isEmpty
+                // Figma X10: nobody to settle, so no question.
+                if !everyoneSettled { Text("Who do you want to settle?").font(.largeTitle.bold()) }
                 if let startTrip, let trip = app.trip(startTrip) {
                     Picker("Trips", selection: $scope) {
                         Text(trip.name).tag(UUID?.some(startTrip))
@@ -52,9 +54,12 @@ struct SettleUpView: View {
                     let p = settledHere[i]
                     MemberTicketView(personId: p.personId, direction: p.direction, cents: 0, tripIds: p.tripIds, paid: p)
                 }
-                if tickets.isEmpty && settledHere.isEmpty {
-                    ContentUnavailableView("You’re settled up", systemImage: "checkmark.seal",
-                                           description: Text(scope == nil ? "You don’t owe anyone, and nobody owes you." : "You don’t owe anyone on this trip, and nobody here owes you."))
+                if everyoneSettled {
+                    EmptyState(title: "You’re settled up",
+                               message: scope == nil ? "You don’t owe anyone, and nobody owes you." : "You don’t owe anyone on this trip, and nobody here owes you.") {
+                        StampCluster()
+                    }
+                    .padding(.top, 80)
                 } else {
                     Text("Simplified so the fewest payments settle everyone. Tap someone to pay them, or to record what they paid you.")
                         .font(.footnote).foregroundStyle(Color.tsSecondary)

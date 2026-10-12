@@ -12,6 +12,7 @@ struct ExpenseDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var openTrip = false
     @State private var restoreAlert: RestoreAlert?
+    @State private var failure: Failure?
 
     var body: some View {
         if let e = app.expenses.first(where: { $0.id == expenseId }) {
@@ -98,17 +99,15 @@ struct ExpenseDetailView: View {
                 switch alert {
                 case .confirm:
                     Button("Cancel", role: .cancel) {}
-                    Button("Restore") { restore(e) }.keyboardShortcut(.defaultAction)
+                    Button("Restore") { Task { await restore(e) } }.keyboardShortcut(.defaultAction)
                 case .blocked:
                     Button("OK", role: .cancel) {}
-                case .failed:
-                    Button("Cancel", role: .cancel) {}
-                    Button("Try Again") { restore(e) }.keyboardShortcut(.defaultAction)
                 }
             } message: { alert in
                 Text(alert.message(e, tripName: tripName, you: ExpenseLine.parts(amountCents: e.amountCents, youPaid: e.payerId == app.userId,
                                                                                    yourShareCents: e.share(of: app.userId))))
             }
+            .failureAlert($failure)  // D6: Couldn’t Restore, Cancel and Retry
         } else {
             // Deleted here or on another phone.
             Color(.systemGroupedBackground).onAppear { dismiss() }
@@ -128,13 +127,13 @@ struct ExpenseDetailView: View {
         }
     }
 
-    private func restore(_ e: Expense) {
-        Task {
-            do { try await app.restoreExpense(e.id) }
-            catch {
-                // Someone left between opening this and tapping Restore: the server refuses, like the check below.
-                restoreAlert = String(describing: error).contains("left the trip") ? .blocked(nil) : .failed
-            }
+    private func restore(_ e: Expense) async {
+        do { try await app.restoreExpense(e.id) }
+        catch where String(describing: error).contains("left the trip") {
+            // Someone left between opening this and tapping Restore: the server refuses, like the check below.
+            restoreAlert = .blocked(nil)
+        } catch {
+            failure = Failure(title: "Couldn’t Restore “\(e.description)”", error: error) { await restore(e) }
         }
     }
 
@@ -182,18 +181,17 @@ private struct SplitRow: View {
 }
 
 
-/// The Restore alerts (Figma D4–D6): confirm, refused because someone left, and a failed save.
+/// The Restore alerts (Figma D4–D5): confirm, and refused because someone left. A failed save (D6) is the shared
+/// failure alert.
 private enum RestoreAlert {
     case confirm
     /// Who left; nil when the server refused it and we don't know.
     case blocked(String?)
-    case failed
 
     func title(_ e: Expense) -> String {
         switch self {
         case .confirm: "Restore “\(e.description)”?"
         case .blocked: "Can’t Restore “\(e.description)”"
-        case .failed: "Couldn’t Restore “\(e.description)”"
         }
     }
 
@@ -209,8 +207,6 @@ private enum RestoreAlert {
             return "It goes back into “\(tripName)”." + line
         case .blocked(let name):
             return "\(name ?? "Someone on it") left “\(tripName)”. Add them back to the trip to restore this expense."
-        case .failed:
-            return "Check your connection and try again."
         }
     }
 }
