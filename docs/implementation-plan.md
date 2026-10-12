@@ -134,7 +134,7 @@ A **parallel track** runs alongside: user testing the Figma prototype during pha
 Built along the way: Expense details with restore (TRIP-26, TRIP-27), the Profile redesign with editable name and a single Venmo row (TRIP-22), and one-account-per-device push tokens (TRIP-23).
 
 **Build**
-- Activity feed: statements per the PRD grammar, dollar lines per `events.md`, timestamps, search, taps (expense to edit, trip to detail, a deleted trip to the undelete alert).
+- Activity feed: statements per the PRD grammar, dollar lines per `events.md`, timestamps, search, taps (expense to Expense details, trip to detail, a deleted trip to the undelete alert).
 - Device token registration; `push` edge function implementing the event matrix, respecting preferences and never notifying the actor.
 - Profile: name, "Signed in with Apple", pay methods, notification switches, sign out with confirmation.
 
