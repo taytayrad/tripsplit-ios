@@ -127,7 +127,7 @@ struct TripCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: Spacing.md) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(trip.name).font(.title2.bold()).foregroundStyle(.primary).lineLimit(2)
+                Text(trip.name).font(.title2.bold()).foregroundStyle(.primary).lineLimit(1)
                 Spacer(minLength: Spacing.md)
                 if netCents != 0 {
                     Text(netCents < 0 ? "You owe" : "You’re owed").font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
@@ -143,5 +143,6 @@ struct TripCard: View {
         .background(trip.stamp.ink.tint, in: .rect(cornerRadius: Radius.xl))
         .overlay(RoundedRectangle(cornerRadius: Radius.xl).stroke(trip.stamp.ink.ink.opacity(0.2)))
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(netCents == 0 ? "\(trip.name), \(Money.string(0))" : NetSentence.text(netCents, name: trip.name))
     }
 }

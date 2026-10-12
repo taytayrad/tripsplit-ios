@@ -86,7 +86,7 @@ struct MemberTicketView: View {
 
     private var settled: Bool { cents == 0 }
     private var name: String { app.name(of: personId) }
-    private var label: String { settled ? "Settled" : direction == .pay ? "You owe" : "You lent" }
+    private var label: String { settled ? "Settled" : direction == .pay ? "You owe" : "You’re owed" }
     private var caption: String {
         if let paid {
             let who = paid.direction == .pay ? "You paid" : "\(name) paid you"
@@ -128,13 +128,16 @@ struct MemberTicketView: View {
                     .opacity(landed ? 1 : 0)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                    .onAppear { withAnimation(Motion.celebrate.animation(reduceMotion: reduceMotion)) { landed = true } }
+                    .onAppear {
+                        withAnimation(Motion.celebrate.animation(reduceMotion: reduceMotion)) { landed = true }
+                        AccessibilityNotification.Announcement("Settled with \(name).").post()
+                    }
             }
         }
         .sensoryFeedback(Motion.Haptic.settled.feedback, trigger: landed) { _, new in new }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(settled ? "\(name), settled. \(caption)"
-                            : direction == .pay ? "You owe \(name) \(Money.string(cents)), \(caption)" : "\(name) owes you \(Money.string(cents)), \(caption)")
+        .accessibilityLabel(settled ? "Settled with \(name). \(caption)"
+                            : "\(NetSentence.text(direction == .pay ? -cents : cents, name: name)), \(caption)")
     }
 }
 

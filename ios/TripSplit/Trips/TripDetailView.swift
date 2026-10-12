@@ -37,7 +37,7 @@ struct TripDetailView: View {
                             SettledHero(trip: trip, last: app.payments(on: trip.id).max { $0.createdAt < $1.createdAt })
                         } else {
                             HStack(alignment: .center, spacing: Spacing.md) {
-                                BalanceBlock(cents: net)
+                                BalanceBlock(cents: net, name: trip.name)
                                 if hasSettlements {
                                     Button(net < 0 ? "Pay" : "Settle up") { settling = true }
                                         .font(.headline).foregroundStyle(.white)
