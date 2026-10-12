@@ -329,6 +329,14 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 
 - **Motion and haptics (TRIP-31, 2026-10-11):** every animation uses one of three tokens in `Motion.swift`: `quick` (in-place changes like Show settled trips and Add/Edit trip's stamp, Dates and calendars), `standard` (the move between sign in, onboarding and the app), and `celebrate` (the stamp slam on a settled Member Ticket, and nothing else). Haptics have four names: `selection`, `success`, `settled` (the slam's heavy impact) and `warning`; only `settled` plays for now. The rules: motion never delays a money action; no celebration on errors or on what you owe (`celebrate` and `settled` are only for a settled balance, never a failed save or a "You owe" or "You’re owed" ticket); and Reduce Motion is respected in one place, where the slam's stamp shows at rest with no animation, other motion becomes a short 0.2-second ease instead of a spring (a stamp shuffle still tilts in place, briefly), and haptics still play.
 
+- **Empty and failure states (TRIP-32, approved 2026-10-12; built in TRIP-33):** Figma › Flow · Net model › Empty & failure, X1–X10.
+  - **Offline:** a quiet gray strip in the flow under the title (or the nav bar, or inside the Log sheet). It never covers the list and never takes over the screen. On Trips, Activity and Trip detail it says "You’re offline. Showing your last update."; on the expense form "You’re offline. Connect to save this expense."; on Payment and the Log sheet "You’re offline. Connect to log this payment." Cached trips, Activity and balances stay readable.
+  - **Refused writes:** Save, Record and Log stay tappable offline. Tapping one is refused before the request with the shared failed-save alert, plus the `warning` haptic.
+  - **Failed save:** one alert for every connection failure, offline or not. Each place keeps its title ("Couldn’t Save", "Couldn’t Log Payment", "Couldn’t Restore “Stay”"); the message is always "Check your connection and try again."; the buttons are Cancel, then Retry. Retry checks the connection first, and if you're still offline the alert comes back without a second haptic. Restore's "Try Again" becomes "Retry". "What’s owed just changed" stays its own sentence.
+  - **Couldn’t load:** only a first load with nothing saved on the phone: "Couldn’t load your trips" / "Check your connection and try again." with Retry. No stamps on errors.
+  - **Empty Activity:** one stamp, "No activity yet" / "When anyone adds an expense, pays, or joins one of your trips, it shows up here."
+  - **Settle up with everyone settled:** the three-stamp cluster, "You’re settled up" / "You don’t owe anyone, and nobody owes you."; the "Who do you want to settle?" title is dropped.
+
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.
 

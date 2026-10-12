@@ -50,7 +50,7 @@ flowchart LR
 
 ## Figma sections
 
-Net model page [Flow · Net model](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-29): [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-30) (T1–T3), [Settle up](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-32) (U1–U3), [Payment](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-34) (P1–P5), [Remove & leave](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-36) (R1–R3), [Expense details](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=271-1018) (D1–D7; D3–D6 are restore, TRIP-27).
+Net model page [Flow · Net model](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-29): [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-30) (T1–T3), [Settle up](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-32) (U1–U3), [Payment](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-34) (P1–P5), [Remove & leave](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=179-36) (R1–R3), [Expense details](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=271-1018) (D1–D7; D3–D6 are restore, TRIP-27), [Empty & failure](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=331-1812) (X1–X10: offline banner, shared failed-save alert, couldn’t load, empty Activity, Settle up with everyone settled; TRIP-32, built in TRIP-33).
 
 Flow (current build) page:
 
