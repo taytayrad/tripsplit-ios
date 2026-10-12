@@ -14,6 +14,7 @@ struct TripFormView: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var name = ""
     @State private var stamp = StampSpec.random()  // a new trip's stamp shows before saving; tap for another
     @State private var hasDates = false
@@ -27,6 +28,7 @@ struct TripFormView: View {
     @State private var picked: Set<UUID> = []
     @State private var loaded = false
     @FocusState private var nameFocused: Bool
+    private var quick: Animation? { Motion.quick.animation(reduceMotion: reduceMotion) }
     enum DateField { case start, end }
     /// The date whose calendar is open under its row.
     @State private var openDate: DateField?
@@ -46,7 +48,7 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    Button { withAnimation { stamp = .random() } } label: {
+                    Button { withAnimation(quick) { stamp = .random() } } label: {
                         StampAvatar(spec: stamp, size: 96).frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -62,7 +64,7 @@ struct TripFormView: View {
                 }
 
                 Section {
-                    Toggle("Dates", isOn: $hasDates.animation())
+                    Toggle("Dates", isOn: $hasDates.animation(quick))
                     if hasDates {
                         dateRow("Start", start, .start)
                         if openDate == .start {
@@ -79,7 +81,7 @@ struct TripFormView: View {
                 .onChange(of: start) {  // compare days: `start` carries a time of day
                     if Calendar.current.startOfDay(for: end) < Calendar.current.startOfDay(for: start) { end = start }
                 }
-                .onChange(of: nameFocused) { if nameFocused { withAnimation { openDate = nil } } }
+                .onChange(of: nameFocused) { if nameFocused { withAnimation(quick) { openDate = nil } } }
 
                 if let trip = liveTrip {
                     Section {
@@ -194,7 +196,7 @@ struct TripFormView: View {
     private func dateRow(_ title: String, _ date: Date, _ field: DateField) -> some View {
         Button {
             nameFocused = false
-            withAnimation { openDate = openDate == field ? nil : field }
+            withAnimation(quick) { openDate = openDate == field ? nil : field }
         } label: {
             HStack {
                 Text(title).foregroundStyle(.primary)

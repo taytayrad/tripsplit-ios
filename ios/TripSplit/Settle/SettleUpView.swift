@@ -124,14 +124,14 @@ struct MemberTicketView: View {
                 StampView(spec: stamp)
                     .frame(width: 96, height: 72)
                     .rotationEffect(.degrees(-10))
-                    .scaleEffect(landed || reduceMotion ? 1 : 2.2)
-                    .opacity(landed || reduceMotion ? 1 : 0)
+                    .scaleEffect(landed ? 1 : 2.2)
+                    .opacity(landed ? 1 : 0)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                    .onAppear { withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { landed = true } }
+                    .onAppear { withAnimation(Motion.celebrate.animation(reduceMotion: reduceMotion)) { landed = true } }
             }
         }
-        .sensoryFeedback(.impact(weight: .heavy), trigger: landed) { _, new in new }
+        .sensoryFeedback(Motion.Haptic.settled.feedback, trigger: landed) { _, new in new }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(settled ? "\(name), settled. \(caption)"
                             : direction == .pay ? "You owe \(name) \(Money.string(cents)), \(caption)" : "\(name) owes you \(Money.string(cents)), \(caption)")

@@ -27,6 +27,7 @@ struct TripSplitApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         @Bindable var app = app
@@ -39,7 +40,7 @@ struct RootView: View {
             case .ready: MainView()
             }
         }
-        .animation(.default, value: app.stage)
+        .animation(Motion.standard.animation(reduceMotion: reduceMotion), value: app.stage)
         .alert("Something went wrong", isPresented: .init(get: { app.error != nil }, set: { if !$0 { app.error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(app.error ?? "") }
