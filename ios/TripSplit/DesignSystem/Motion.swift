@@ -17,7 +17,8 @@ enum Motion {
     /// The stamp slam on a settled Member Ticket, and nothing else.
     case celebrate
 
-    /// Reduce Motion on: `celebrate` doesn't animate (the stamp shows at rest), and the others become a short fade.
+    /// Reduce Motion on: `celebrate` doesn't animate (the stamp shows at rest), and the others become a short ease
+    /// instead of a spring. That eases whatever the change animates; a stamp shuffle still tilts in place for 0.2s.
     func animation(reduceMotion: Bool) -> Animation? {
         switch (self, reduceMotion) {
         case (.celebrate, false): .spring(response: 0.35, dampingFraction: 0.55)
