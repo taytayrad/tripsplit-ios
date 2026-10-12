@@ -38,6 +38,7 @@ struct ExpenseDetailView: View {
                         }
                         if deleted {
                             Text(Money.string(e.amountCents)).font(.system(size: 48, weight: .bold)).strikethrough()
+                                .lineLimit(1).minimumScaleFactor(0.5)
                                 .foregroundStyle(Color.tsSecondary)
                                 .accessibilityLabel("\(Money.string(e.amountCents)), not counted")
                             Note(text: "\(e.deletedBy == app.userId ? "You" : e.deletedBy.map(app.name(of:)) ?? "Someone") deleted this expense on \(Self.day(e.deletedAt ?? .now)). It doesn’t count toward anyone’s balance.")

@@ -90,7 +90,7 @@ struct SettlingTests {
 
     @Test func memberAmountsAreInWords() {
         #expect(MemberAmount(cents: -3000, isYou: true).label == "You owe")
-        #expect(MemberAmount(cents: 800, isYou: true).label == "You lent")
+        #expect(MemberAmount(cents: 800, isYou: true).label == "You’re owed")
         #expect(MemberAmount(cents: 3000, isYou: false).label == "Gets back")
         #expect(MemberAmount(cents: -1200, isYou: false).label == "Owes")
         #expect(MemberAmount(cents: 0, isYou: false).label == "Settled")

@@ -63,7 +63,7 @@ enum TripLedger {
     }
 }
 
-/// A member's amount on Edit trip, in words: "You owe" / "You lent" for you, "Owes" / "Gets back" for others,
+/// A member's amount on Edit trip, in words: "You owe" / "You’re owed" for you, "Owes" / "Gets back" for others,
 /// "Settled" at $0. `cents` is their net (positive = owed).
 struct MemberAmount: Equatable {
     let cents: Int
@@ -71,7 +71,7 @@ struct MemberAmount: Equatable {
 
     var label: String {
         if cents == 0 { return "Settled" }
-        if isYou { return cents < 0 ? "You owe" : "You lent" }
+        if isYou { return cents < 0 ? "You owe" : "You’re owed" }
         return cents < 0 ? "Owes" : "Gets back"
     }
 }

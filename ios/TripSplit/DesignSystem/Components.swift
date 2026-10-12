@@ -48,10 +48,12 @@ struct StampAvatar: View {
     }
 }
 
-/// Net in words, never a sign: "You owe $90", "You're owed $56.14", "Settled $0".
+/// Net in words, never a sign: "You owe $90", "You're owed $56.14", "Settled $0". VoiceOver reads a net as one
+/// sentence naming `name` (the trip on trip detail): "You’re owed Coast Road $90" (TRIP-34).
 struct BalanceBlock: View {
     let cents: Int
     var label: String?
+    var name: String?
     var detail: String?
     /// The amount to show when it isn't the net, in gray: an expense's total ("You paid $60", "Total $60").
     var shownCents: Int?
@@ -71,6 +73,16 @@ struct BalanceBlock: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Spacing.lg)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(label == nil && cents != 0 ? NetSentence.text(cents, name: name)
+                            : [label ?? "Settled", Money.string(shownCents ?? cents), detail].compactMap { $0 }.joined(separator: ", "))
+    }
+}
+
+/// A net as the sentence VoiceOver reads (TRIP-34): "You’re owed Alex $90", "You owe Coast Road $30". `$90` is
+/// spoken "90 dollars". At $0 the screen shows the amount alone, so there's no sentence.
+enum NetSentence {
+    static func text(_ cents: Int, name: String?) -> String {
+        [cents < 0 ? "You owe" : "You’re owed", name, Money.string(cents)].compactMap { $0 }.joined(separator: " ")
     }
 }
 
