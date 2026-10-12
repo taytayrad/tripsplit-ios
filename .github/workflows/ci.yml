@@ -30,11 +30,24 @@ jobs:
       - name: Generate project
         working-directory: ios
         run: xcodegen && xcodebuild -version
+      - name: Pick a simulator
+        # Runners sometimes lack the iPhone 16 (or any simulator) for this Xcode: use any available iPhone,
+        # else create one from the newest iOS runtime, downloading the runtime if none is installed.
+        run: |
+          iphone() { xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid // empty'; }
+          runtime() { xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.platform == "iOS" and .isAvailable)] | last | .identifier // empty'; }
+          udid=$(iphone)
+          if [ -z "$udid" ]; then
+            [ -n "$(runtime)" ] || xcodebuild -downloadPlatform iOS
+            udid=$(xcrun simctl create "CI iPhone" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "$(runtime)")
+          fi
+          echo "Using simulator $udid"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
       - name: Test
         working-directory: ios
         run: |
           xcodebuild test -project TripSplit.xcodeproj -scheme TripSplit \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "id=$SIM_UDID" \
             CODE_SIGNING_ALLOWED=NO > xcodebuild.log 2>&1 && status=0 || status=$?
           grep -E "error:" xcodebuild.log | sort -u | head -50 || true
           tail -40 xcodebuild.log
