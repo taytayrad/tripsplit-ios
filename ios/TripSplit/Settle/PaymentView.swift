@@ -106,7 +106,7 @@ struct PaymentView: View {
                     MethodPicker(direction: ticket.direction, name: name, methods: methods, venmo: them?.venmoUsername,
                                  selection: .init(get: { chosen }, set: { method = $0 }))
                 } label: {
-                    LabeledContent("Method") { Text(chosen.title ?? "Recorded").foregroundStyle(Color.tsTintFill) }
+                    LabeledContent("Method") { Text(chosen.title ?? "Recorded").foregroundStyle(Color.accentColor) }
                 }
             } footer: {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -296,7 +296,7 @@ struct MethodPicker: View {
                                 if let caption = caption(m) { Text(caption).font(.footnote).foregroundStyle(Color.tsSecondary) }
                             }
                             Spacer()
-                            if m == selection { Image(systemName: "checkmark").foregroundStyle(Color.tsTintFill) }
+                            if m == selection { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
                         }
                     }
                 }

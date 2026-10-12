@@ -46,7 +46,7 @@ struct AppIconView: View {
                             Text(icon.title).foregroundStyle(.primary)
                             Spacer()
                             if currentName == icon.alternateName {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tsTintFill)
+                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
                                     .accessibilityHidden(true)
                             }
                         }

@@ -196,7 +196,7 @@ struct TripFormView: View {
                 Text(title).foregroundStyle(.primary)
                 Spacer()
                 Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
-                    .foregroundStyle(openDate == field ? Color.tsTintFill : Color.tsSecondary)
+                    .foregroundStyle(openDate == field ? Color.accentColor : Color.tsSecondary)
             }
         }
         .accessibilityValue(date.formatted(date: .long, time: .omitted))

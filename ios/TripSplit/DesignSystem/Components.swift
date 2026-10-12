@@ -122,7 +122,7 @@ struct CheckRow: View {
                 Spacer()
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isOn ? Color.tsTintFill : Color(.separator))
+                    .foregroundStyle(isOn ? Color.accentColor : Color(.separator))
             }
             .contentShape(.rect)
         }

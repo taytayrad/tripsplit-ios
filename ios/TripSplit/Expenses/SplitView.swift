@@ -97,7 +97,7 @@ struct SplitView: View {
                 .padding(.horizontal, Spacing.sm)
                 .frame(width: 96, height: 32)
                 .background(Color(.systemGray5), in: .rect(cornerRadius: Radius.sm))
-                .overlay(RoundedRectangle(cornerRadius: Radius.sm).stroke(Color.tsTintFill, lineWidth: focused == m.userId ? 2 : 0))
+                .overlay(RoundedRectangle(cornerRadius: Radius.sm).stroke(Color.accentColor, lineWidth: focused == m.userId ? 2 : 0))
                 .contentShape(.rect)
                 .onTapGesture { focused = m.userId }
             }

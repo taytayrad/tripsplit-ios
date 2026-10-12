@@ -51,7 +51,7 @@ struct LogPaymentSheet: View {
             .buttonStyle(PrimaryButtonStyle())
             .disabled(problem != nil || saving)
             .padding(.top, Spacing.md)
-            Button("Not yet") { dismiss() }.foregroundStyle(Color.tsTintFill).frame(minHeight: 44).disabled(saving)
+            Button("Not yet") { dismiss() }.foregroundStyle(Color.accentColor).frame(minHeight: 44).disabled(saving)
         }
         .padding(.horizontal, Spacing.lg)
         .presentationDetents([.medium])
