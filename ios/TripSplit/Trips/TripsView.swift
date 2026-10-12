@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TripsView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingTrip = false
     @State private var showSettled = false
     @State private var path: [UUID] = []
@@ -32,7 +33,7 @@ struct TripsView: View {
                         }
                         if !settled.isEmpty {
                             Button(showSettled ? "Hide settled trips" : settled.count == 1 ? "Show 1 settled trip" : "Show \(settled.count) settled trips") {
-                                withAnimation { showSettled.toggle() }
+                                withAnimation(Motion.quick.animation(reduceMotion: reduceMotion)) { showSettled.toggle() }
                             }
                             .font(.subheadline).frame(minHeight: 44)
                             .accessibilityValue(showSettled ? "Showing" : "Hidden")
