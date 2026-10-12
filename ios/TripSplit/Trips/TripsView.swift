@@ -170,7 +170,8 @@ struct SettledTripRow: View {
     }
 }
 
-/// The trips list card: name and your net in words (no sign), over the trip's ink.
+/// The trips list card: name and your net in words (no sign), on the surface color with the trip's ink as its
+/// border (TRIP-15: no tint fill).
 struct TripCard: View {
     let trip: Trip
     let netCents: Int
@@ -191,7 +192,7 @@ struct TripCard: View {
         }
         .padding(Spacing.lg)
         .frame(minHeight: 132)
-        .background(trip.stamp.ink.tint, in: .rect(cornerRadius: Radius.xl))
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.xl))
         .overlay(RoundedRectangle(cornerRadius: Radius.xl).stroke(trip.stamp.ink.ink.opacity(0.2)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(netCents == 0 ? "\(trip.name), \(Money.string(0))" : NetSentence.text(netCents, name: trip.name))

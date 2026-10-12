@@ -27,24 +27,21 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
-/// A trip's image wherever the trip appears: its generated stamp on the ink tint (stamps only, no photos).
+/// A trip's image wherever the trip appears: its generated stamp, straight on the background (stamps only, no photos).
 struct TripAvatar: View {
     let trip: Trip
     var size: CGFloat = 56
     var body: some View { StampAvatar(spec: trip.stamp, size: size) }
 }
 
+/// No fill behind the stamp (TRIP-15); the frame stays `size` square so layouts don't shift.
 struct StampAvatar: View {
     let spec: StampSpec
     var size: CGFloat = 56
     var body: some View {
-        ZStack {
-            spec.ink.tint
-            StampView(spec: spec).padding(size * 0.05)
-        }
-        .frame(width: size, height: size)
-        .clipShape(.rect(cornerRadius: size > 60 ? Radius.xl : Radius.md))
-        .accessibilityHidden(true)
+        StampView(spec: spec).padding(size * 0.05)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 
