@@ -2,7 +2,8 @@ import SwiftUI
 
 /// A write that didn't reach the server, offline or not (TRIP-33, Figma X7). One alert everywhere: the site's own
 /// title, "Check your connection and try again.", Cancel then Retry.
-struct Failure {
+struct Failure: Identifiable {
+    let id = UUID()
     let title: String
     var error: Error?
     /// Runs the write again. If it fails again it sets a new `Failure`, which shows without a second haptic.
@@ -19,39 +20,43 @@ extension View {
 
 private struct FailureAlert: ViewModifier {
     @Binding var failure: Failure?
-    /// Retry tapped; runs once the alert has closed. An alert presented while the last one is still animating away
-    /// is silently dropped, and an offline Retry fails instantly, so the retry waits out the dismissal.
-    @State private var pendingRetry: Failure?
+    /// The failure on screen. It appears a beat after `failure` is set: an offline write fails instantly, often
+    /// while a confirmation (Delete, Restore, Leave) or this alert's own Retry is still animating away, and an alert
+    /// presented during that animation is silently dropped.
+    @State private var shown: Failure?
     @State private var retrying = false
     @State private var warnings = 0
 
     func body(content: Content) -> some View {
         content
-            .alert(failure?.title ?? "", isPresented: .init(get: { failure != nil }, set: { if !$0 { failure = nil } }), presenting: failure) { f in
+            .alert(shown?.title ?? "", isPresented: .init(get: { shown != nil }, set: { if !$0 { dismiss() } }), presenting: shown) { f in
                 Button("Cancel", role: .cancel) {}
                 Button("Retry") {
-                    if failure == nil { run(f) } else { pendingRetry = f }
+                    retrying = true
+                    Task {
+                        await f.retry()
+                        retrying = false
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
             } message: { f in Text(f.message) }
-            .onChange(of: failure != nil) { _, shown in
-                if shown {
-                    if !retrying { warnings += 1 }  // `warning` once per failure: a failed Retry re-shows silently
-                } else if let f = pendingRetry {
-                    pendingRetry = nil
-                    run(f)
+            .onChange(of: failure?.id) {
+                guard let f = failure else { return }
+                let silent = retrying  // `warning` once per failure: a failed Retry re-shows silently
+                Task {
+                    try? await Task.sleep(for: .milliseconds(450))  // an alert's dismiss animation
+                    guard failure?.id == f.id else { return }
+                    if !silent { warnings += 1 }
+                    shown = f
                 }
             }
             .sensoryFeedback(Motion.Haptic.warning.feedback, trigger: warnings)
     }
 
-    private func run(_ f: Failure) {
-        retrying = true
-        Task {
-            try? await Task.sleep(for: .milliseconds(450))  // the alert's dismiss animation
-            await f.retry()
-            retrying = false
-        }
+    /// Clears only the failure that was on screen, never a newer one a Retry set meanwhile.
+    private func dismiss() {
+        if failure?.id == shown?.id { failure = nil }
+        shown = nil
     }
 }
 
