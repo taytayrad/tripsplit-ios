@@ -30,7 +30,7 @@ is Taylor's.
    answered: `ITSAppUsesNonExemptEncryption` is `NO` in `project.yml` (HTTPS only).
 6. Testers install from the TestFlight app. Profile's footer shows `TripSplit 0.1.0 (n)`, matching the upload.
 
-Before the first upload, **Organizer › the archive › Generate Privacy Report** should list TripSplit's own manifest
+Before the first upload, right-click the archive in the Organizer › **Generate Privacy Report**. It should list TripSplit's own manifest
 (UserDefaults, reason `CA92.1`; Name and User ID) plus swift-crypto's, which ships its own. Don't copy package
 reasons into the app's manifest.
 
