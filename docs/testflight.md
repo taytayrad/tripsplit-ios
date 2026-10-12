@@ -24,8 +24,9 @@ is Taylor's.
 2. In `ios/`, run `xcodegen`, then open `TripSplit.xcodeproj`.
 3. Destination **Any iOS Device (arm64)**, then **Product › Archive**. Archive builds Release, which talks to the
    hosted Supabase project.
-4. In the Organizer: **Distribute App › TestFlight & App Store** (or **TestFlight Internal Only**) › Distribute.
-   Automatic signing creates the distribution certificate and profile the first time.
+4. In the Organizer: **Distribute App › App Store Connect** › Distribute. Not **TestFlight Internal Only**: that
+   build can't go to external testers (TRIP-37). Uploading doesn't submit to the App Store. Automatic signing
+   creates the distribution certificate and profile the first time.
 5. Wait for App Store Connect to finish processing (email, usually 10–30 minutes). Export compliance is already
    answered: `ITSAppUsesNonExemptEncryption` is `NO` in `project.yml` (HTTPS only).
 6. Testers install from the TestFlight app. Profile's footer shows `TripSplit 0.1.0 (n)`, matching the upload.
