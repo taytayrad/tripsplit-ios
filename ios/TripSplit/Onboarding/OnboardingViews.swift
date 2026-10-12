@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.colorScheme) private var colorScheme
     @State private var nonce = ""
     @State private var testName = ""
 
@@ -31,7 +32,7 @@ struct SignInView: View {
                       let token = credential.identityToken.flatMap({ String(data: $0, encoding: .utf8) }) else { return }
                 Task { await app.signInWithApple(idToken: token, nonce: nonce, fullName: credential.fullName) }
             }
-            .signInWithAppleButtonStyle(.black)
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)  // HIG: black vanishes on a dark background
             .frame(height: 50)
             .clipShape(.rect(cornerRadius: Radius.lg))
             #if DEBUG

@@ -142,7 +142,7 @@ struct AddTripCard: View {
     let onAdd: () -> Void
     var body: some View {
         Button(action: onAdd) {
-            Label("Add trip", systemImage: "plus").font(.headline).foregroundStyle(Color.tsTintFill)
+            Label("Add trip", systemImage: "plus").font(.headline).foregroundStyle(Color.accentColor)
                 .frame(maxWidth: .infinity, minHeight: 72)
                 .overlay(RoundedRectangle(cornerRadius: Radius.xl).strokeBorder(Color.tsSecondary, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
                 .contentShape(.rect)

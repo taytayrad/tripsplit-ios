@@ -48,7 +48,7 @@ struct AppleCashGuide: View {
                 Text("New to Apple Cash? Turn it on in Settings › Wallet & Apple Pay › Apple Cash.")
                     .font(.footnote).foregroundStyle(Color.tsSecondary).multilineTextAlignment(.center)
                 Link("How to set up Apple Cash", destination: URL(string: "https://support.apple.com/en-us/109304")!)
-                    .font(.subheadline).foregroundStyle(Color.tsTintFill).frame(minHeight: 44)
+                    .font(.subheadline).foregroundStyle(Color.accentColor).frame(minHeight: 44)
             }
             .frame(maxWidth: .infinity)
         }

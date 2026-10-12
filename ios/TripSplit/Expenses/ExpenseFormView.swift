@@ -87,13 +87,13 @@ struct ExpenseFormView: View {
                     HStack(spacing: 0) {
                         Text("Paid by ")
                         NavigationLink { PaidByView(members: members, tripName: trip?.name ?? "", selected: $payer) } label: {
-                            Text(payerWord).foregroundStyle(Color.tsTintFill)
+                            Text(payerWord).foregroundStyle(Color.accentColor)
                         }
                         Text(" and split ")
                         NavigationLink {
                             SplitView(summary: summary, tripName: trip?.name ?? "", members: members, amountCents: amountCents, kind: $splitKind, inputs: $inputs)
                         } label: {
-                            Text(splitWord).foregroundStyle(Color.tsTintFill)
+                            Text(splitWord).foregroundStyle(Color.accentColor)
                         }
                     }
                     .buttonStyle(.plain)
@@ -247,7 +247,7 @@ struct PaidByView: View {
                         HStack {
                             Text(m.userId == app.userId ? "You" : PersonName.shown(m.profiles.displayName)).foregroundStyle(.primary)
                             Spacer()
-                            if m.userId == selected { Image(systemName: "checkmark").foregroundStyle(Color.tsTintFill) }
+                            if m.userId == selected { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
                         }
                     }
                 }
