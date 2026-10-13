@@ -10,9 +10,9 @@ is Taylor's.
 2. **App Store Connect › Apps:** the TripSplit record exists (Apple ID `6818893346`, bundle ID `com.taylor.tripsplit`).
 3. **TestFlight › Test Information:** a beta description (what to try) and a feedback email.
 4. **App Privacy:** the nutrition label. Settled answers: no tracking; Name and User ID are collected, linked to the
-   user, for App Functionality; no phone number, no contacts, no location. Still Taylor's to answer, not settled here:
-   - the Venmo username (don't assume it's Apple's "Payment Info");
-   - the email address Sign in with Apple may share with Supabase.
+   user, for App Functionality; no phone number, no contacts, no location. Email Address too (Sign in with Apple can
+   share one, stored on the account), same answers. Still Taylor's to answer, not settled here:
+   - the Venmo username (don't assume it's Apple's "Payment Info").
    If the label gains a type, add it to `ios/TripSplit/PrivacyInfo.xcprivacy` too so the two agree.
 5. **TestFlight › Internal Testing:** a group with Taylor and Atish. The external group for the five friends is
    TRIP-37, not this step.
