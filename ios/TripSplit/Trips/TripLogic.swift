@@ -75,3 +75,18 @@ struct MemberAmount: Equatable {
         return cents < 0 ? "Owes" : "Gets back"
     }
 }
+
+/// The words on a Trips boarding pass (TRIP-38).
+enum TripCardText {
+    /// "Oct 3 – 6 · 3 members"; "3 members" without dates.
+    static func subtitle(start: Date?, end: Date?, memberCount: Int) -> String {
+        let members = memberCount == 1 ? "1 member" : "\(memberCount) members"
+        guard let start, let end else { return members }
+        return "\(DayFormat.range(start, end)) · \(members)"
+    }
+
+    /// The stub's label over the amount; none at $0, which shows the amount alone.
+    static func label(netCents: Int) -> String? {
+        netCents < 0 ? "You owe" : netCents > 0 ? "You’re owed" : nil
+    }
+}

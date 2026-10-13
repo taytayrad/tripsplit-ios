@@ -32,5 +32,5 @@ Native iPhone app (SwiftUI, iOS 17+) on Supabase, for close friends to split tri
 - Money writes go through Postgres functions in one transaction; the app never inserts expenses, shares, or payments directly. Balances are calculated, never stored.
 - Never collect or display a phone number. No Contacts matching.
 - A payment exists only once logged in TripSplit. Returning from Venmo, Zelle, or Apple Cash records nothing.
-- Stamps contain no letters or words and are always fully inside their frame.
+- Stamps contain no letters or words and are always fully inside their frame. The one exception: a stamp used as a background watermark (the Trips boarding pass, TRIP-38) may be cropped by its card.
 - When a design or product decision is made during the build, add it to `prd.md` under "Prototype decisions", so the PRD stays the single record.

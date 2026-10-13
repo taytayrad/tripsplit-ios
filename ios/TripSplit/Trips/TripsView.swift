@@ -136,23 +136,35 @@ struct EmptyState<Art: View>: View {
     }
 }
 
-/// Figma Add trip card: a short dashed placeholder under the trips in play. The outline uses the secondary text
-/// color so it stays visible (3:1 or better) on the grouped background.
+/// Add trip as a blank ticket (TRIP-38, Figma A2): the trip cards' paper and tear line, with an empty dashed stamp
+/// frame in the stub waiting for the new trip's stamp.
 struct AddTripCard: View {
     let onAdd: () -> Void
+    private static let stubWidth: CGFloat = 112  // the trip cards' stub (92 pt minimum plus padding), so the tears line up
+
     var body: some View {
         Button(action: onAdd) {
-            Label("Add trip", systemImage: "plus").font(.headline).foregroundStyle(Color.accentColor)
-                .frame(maxWidth: .infinity, minHeight: 72)
-                .overlay(RoundedRectangle(cornerRadius: Radius.xl).strokeBorder(Color.tsSecondary, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
-                .contentShape(.rect)
+            HStack(spacing: 0) {
+                Label("Add trip", systemImage: "plus").font(.headline).foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                TearLine()
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(Color(.separator), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                    .frame(width: 46, height: 34).rotationEffect(.degrees(-8))
+                    .frame(width: Self.stubWidth)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 72)
+            .ticketBackground(.vertical(fromTrailing: Self.stubWidth + TicketShape.notchRadius))
+            .contentShape(TicketShape(cut: .vertical(fromTrailing: Self.stubWidth + TicketShape.notchRadius)))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Add trip")
     }
 }
 
-/// A settled trip, shown below "Show settled trips": one compact line (stamp, name, "Settled"), so finished trips
-/// don't compete with the ones still in play.
+/// A settled trip, shown below "Show settled trips": a used ticket, its stub torn off (TRIP-38). The stamp is whole
+/// here, since it's the trip's picture, not a watermark.
 struct SettledTripRow: View {
     let trip: Trip
     var body: some View {
@@ -161,40 +173,99 @@ struct SettledTripRow: View {
             Text(trip.name).font(.headline).foregroundStyle(.primary).lineLimit(1)
             Spacer()
             Text("Settled").font(.subheadline).foregroundStyle(Color.tsSecondary)
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
         }
-        .padding(.horizontal, Spacing.lg).frame(minHeight: 60)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.xl))
+        .padding(.leading, Spacing.lg).padding(.trailing, Spacing.xl).frame(minHeight: 60)
+        .ticketBackground(.torn)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(trip.name), settled")
     }
 }
 
-/// The trips list card: name and your net in words (no sign), on the surface color with the trip's ink as its
-/// border (TRIP-15: no tint fill).
+/// The trips list card as a boarding pass (TRIP-38, Figma V1b): name and dates · members, a tear line, and a stub
+/// with your net in words (no sign). The trip's stamp is a faded watermark cropped by the card; at accessibility
+/// text sizes the pass stacks, tearing across instead of down.
 struct TripCard: View {
     let trip: Trip
     let netCents: Int
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.colorSchemeContrast) private var contrast
+    /// The stub's width (it hugs its text), or the main part's height when stacked: where the tear goes.
+    @State private var tear: CGFloat = 100
+
+    private var stacked: Bool { typeSize.isAccessibilitySize }
+    private var cut: TicketShape.Cut {
+        stacked ? .horizontal(fromTop: tear + TicketShape.notchRadius) : .vertical(fromTrailing: tear + TicketShape.notchRadius)
+    }
 
     var body: some View {
-        HStack(alignment: .center, spacing: Spacing.md) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(trip.name).font(.title2.bold()).foregroundStyle(.primary).lineLimit(1)
-                Spacer(minLength: Spacing.md)
-                if netCents != 0 {
-                    Text(netCents < 0 ? "You owe" : "You’re owed").font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 0) {
+                    main.padding(.top, Spacing.xl).padding(.bottom, Spacing.sm)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tear = $0 }
+                    TearLine(axis: .horizontal)
+                    stub.padding(.horizontal, Spacing.lg).padding(.top, Spacing.sm).padding(.bottom, Spacing.xl)
                 }
-                Text(Money.string(netCents)).font(.title2.bold())
-                    .foregroundStyle(netCents < 0 ? Color.tsOwe : netCents > 0 ? Color.tsOwed : Color.tsSecondary)
+            } else {
+                HStack(spacing: 0) {
+                    main.padding(.vertical, Spacing.xxl)
+                    TearLine()
+                    stub.padding(.trailing, Spacing.lg).padding(.leading, Spacing.xs)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { tear = $0 }
+                }
+                .frame(minHeight: 120)
             }
-            Spacer()
-            TripAvatar(trip: trip, size: 100)
         }
-        .padding(Spacing.lg)
-        .frame(minHeight: 132)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.xl))
-        .overlay(RoundedRectangle(cornerRadius: Radius.xl).stroke(trip.stamp.ink.ink.opacity(0.2)))
+        .background { watermark }
+        .ticketBackground(cut)
+        .contentShape(TicketShape(cut: cut))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(netCents == 0 ? "\(trip.name), \(Money.string(0))" : NetSentence.text(netCents, name: trip.name))
+        .accessibilityValue(subtitle)  // dates and members, so trips with the same name and balance sound different
+    }
+
+    private var subtitle: String { TripCardText.subtitle(start: trip.start, end: trip.end, memberCount: trip.members.count) }
+
+    private var main: some View {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            // Wraps to two lines (no limit at accessibility sizes): the amount has its own stub, so nothing collides.
+            Text(trip.name).font(.title2.bold()).foregroundStyle(.primary).lineLimit(stacked ? nil : 2)
+            Text(subtitle)
+                .font(.footnote).foregroundStyle(Color.tsSecondary).lineLimit(stacked ? nil : 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, Spacing.lg).padding(.trailing, stacked ? Spacing.lg : Spacing.xs)
+    }
+
+    private var stub: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let label = TripCardText.label(netCents: netCents) {
+                Text(label).font(.subheadline.weight(.semibold)).foregroundStyle(Color.tsSecondary)
+            }
+            Text(Money.string(netCents)).font(.title2.bold())
+                .foregroundStyle(netCents < 0 ? Color.tsOwe : netCents > 0 ? Color.tsOwed : Color.tsSecondary)
+        }
+        .fixedSize()
+        // A shared minimum keeps the tear lines in one column down the list; a wider amount grows the stub.
+        .frame(minWidth: stacked ? nil : 92, alignment: .leading)
+    }
+
+    /// The trip's stamp, 130 pt at 15%, rotated −14°, centered 36 pt before the tear and clipped to the trip's side of
+    /// it, so it bleeds off the card. Off with Increase Contrast.
+    @ViewBuilder private var watermark: some View {
+        if contrast != .increased {
+            GeometryReader { geo in
+                let tearX = stacked ? geo.size.width : geo.size.width - tear - TicketShape.notchRadius
+                let tearY = stacked ? tear + TicketShape.notchRadius : geo.size.height
+                StampView(spec: trip.stamp).frame(width: 130)
+                    .rotationEffect(.degrees(-14))
+                    .opacity(0.15)
+                    .position(x: tearX - (stacked ? 44 : 36), y: stacked ? tearY / 2 : geo.size.height / 2)
+                    .frame(width: tearX, height: tearY, alignment: .topLeading)
+                    .clipped()
+            }
+            .clipShape(TicketShape(cut: cut))
+            .accessibilityHidden(true)
+        }
     }
 }
