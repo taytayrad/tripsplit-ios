@@ -221,13 +221,16 @@ struct TripCard: View {
         .contentShape(TicketShape(cut: cut))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(netCents == 0 ? "\(trip.name), \(Money.string(0))" : NetSentence.text(netCents, name: trip.name))
+        .accessibilityValue(subtitle)  // dates and members, so trips with the same name and balance sound different
     }
+
+    private var subtitle: String { TripCardText.subtitle(start: trip.start, end: trip.end, memberCount: trip.members.count) }
 
     private var main: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
             // Wraps to two lines (no limit at accessibility sizes): the amount has its own stub, so nothing collides.
             Text(trip.name).font(.title2.bold()).foregroundStyle(.primary).lineLimit(stacked ? nil : 2)
-            Text(TripCardText.subtitle(start: trip.start, end: trip.end, memberCount: trip.members.count))
+            Text(subtitle)
                 .font(.footnote).foregroundStyle(Color.tsSecondary).lineLimit(stacked ? nil : 1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
