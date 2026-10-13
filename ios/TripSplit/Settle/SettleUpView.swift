@@ -88,6 +88,8 @@ struct MemberTicketView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var landed = false
+    /// The stub's width: where the tear and its notches go.
+    @State private var stubWidth: CGFloat = 80
 
     private var settled: Bool { cents == 0 }
     private var name: String { app.name(of: personId) }
@@ -111,19 +113,18 @@ struct MemberTicketView: View {
                 Spacer(minLength: 0)
             }
             .padding(.leading, Spacing.lg).padding(.vertical, Spacing.lg)
-            Perforation()
+            TearLine()
             VStack(alignment: .trailing, spacing: Spacing.xxs) {
                 Text(label).font(.footnote).foregroundStyle(Color.tsSecondary)
                 Text(Money.string(cents)).font(.title3.bold())
                     .foregroundStyle(settled ? Color.tsSecondary : direction == .pay ? Color.tsOwe : Color.tsOwed)
             }
-            .padding(.leading, Spacing.sm)
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
-                .padding(.horizontal, Spacing.md)
-                .opacity(settled ? 0 : 1)
+            .fixedSize()
+            .padding(.leading, Spacing.xs).padding(.trailing, Spacing.lg)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { stubWidth = $0 }
         }
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: Radius.xl))
-        .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+        // The trip cards' ticket (TRIP-38): real notches, no chevron; the whole ticket is the tap target.
+        .ticketBackground(.vertical(fromTrailing: stubWidth + TicketShape.notchRadius))
         .overlay {
             if settled, let first = tripIds.first, let stamp = app.trip(first)?.stamp {
                 StampView(spec: stamp)
@@ -170,21 +171,3 @@ private struct Stamps: View {
 }
 
 /// The ticket's tear line: a dashed rule with a notch at the top and bottom.
-private struct Perforation: View {
-    var body: some View {
-        ZStack {
-            Line().stroke(Color(.separator), style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])).frame(width: 1.5).padding(.vertical, 14)
-            VStack {
-                Circle().fill(Color(.systemGroupedBackground)).frame(width: 20, height: 20).offset(y: -10)
-                Spacer()
-                Circle().fill(Color(.systemGroupedBackground)).frame(width: 20, height: 20).offset(y: 10)
-            }
-        }
-        .frame(width: 20)
-        .accessibilityHidden(true)
-    }
-
-    private struct Line: Shape {
-        func path(in rect: CGRect) -> Path { Path { $0.move(to: CGPoint(x: rect.midX, y: rect.minY)); $0.addLine(to: CGPoint(x: rect.midX, y: rect.maxY)) } }
-    }
-}
