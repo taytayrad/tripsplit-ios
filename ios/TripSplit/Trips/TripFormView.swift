@@ -16,7 +16,8 @@ struct TripFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var name = ""
-    @State private var stamp = StampSpec.random()  // a new trip's stamp shows before saving; tap for another
+    @State private var stamp = StampSpec.random()  // a new trip's stamp shows before saving; tap to choose another
+    @State private var buildingStamp = false
     @State private var hasDates = false
     @State private var start = Date.now
     @State private var end = Date.now
@@ -45,13 +46,22 @@ struct TripFormView: View {
         NavigationStack {
             Form {
                 Section {
-                    Button { withAnimation(quick) { stamp = .random() } } label: {
-                        StampAvatar(spec: stamp, size: 96).frame(maxWidth: .infinity)
+                    // The stamp and "Edit stamp" are one control: both open the builder (TRIP-39).
+                    Button { buildingStamp = true } label: {
+                        VStack(spacing: Spacing.sm) {
+                            StampAvatar(spec: stamp, size: 96)
+                            Text("Edit stamp").foregroundStyle(Color.accentColor)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
                     .disabled(saving)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Trip stamp")
-                    .accessibilityHint("Double tap for a different stamp")
+                    .accessibilityValue(stamp.spokenName)
+                    .accessibilityHint("Double tap to edit the stamp")
+                    .accessibilityAddTraits(.isButton)
+                    .sheet(isPresented: $buildingStamp) { StampBuilderView(stamp: $stamp) }
                 }
                 .listRowBackground(Color.clear)
 
