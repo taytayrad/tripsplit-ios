@@ -42,8 +42,18 @@ targets:
         CODE_SIGN_ENTITLEMENTS: TripSplit/TripSplit.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: "PHVU622P3U"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO  # the build-number script reads git and edits the built Info.plist
     dependencies:
       - package: Supabase
+    # Release builds (and Archive) number themselves: CFBundleVersion = the git commit count, which only goes up, so
+    # App Store Connect never sees a repeat. Debug keeps CURRENT_PROJECT_VERSION. Runs before code signing.
+    postBuildScripts:
+      - name: Build number from git
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = "Release" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git -C "$SRCROOT" rev-list --count HEAD)" "$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          fi
   TripSplitTests:
     type: bundle.unit-test
     platform: iOS
