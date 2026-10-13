@@ -19,8 +19,8 @@ is Taylor's.
 
 ## Each upload
 
-1. Bump the build number: `CURRENT_PROJECT_VERSION` in `ios/project.yml` (App Store Connect rejects a number it has
-   already seen for this version). Change `MARKETING_VERSION` only for a new version (`0.1.0` today). Commit it.
+1. Pull the latest `main`. The build number sets itself: Release builds (and Archive) use the git commit count, which
+   only goes up. Change `MARKETING_VERSION` in `ios/project.yml` only for a new version (`0.1.0` today).
 2. In `ios/`, run `xcodegen`, then open `TripSplit.xcodeproj`.
 3. Destination **Any iOS Device (arm64)**, then **Product › Archive**. Archive builds Release, which talks to the
    hosted Supabase project.
@@ -29,7 +29,7 @@ is Taylor's.
    creates the distribution certificate and profile the first time.
 5. Wait for App Store Connect to finish processing (email, usually 10–30 minutes). Export compliance is already
    answered: `ITSAppUsesNonExemptEncryption` is `NO` in `project.yml` (HTTPS only).
-6. Testers install from the TestFlight app. Profile's footer shows `TripSplit 0.1.0 (n)`, matching the upload.
+6. Testers install from the TestFlight app. Profile's footer shows `TripSplit 0.1.0 (n)`, where n is that commit count.
 
 Before the first upload, right-click the archive in the Organizer › **Generate Privacy Report**. It should list TripSplit's own manifest
 (UserDefaults, reason `CA92.1`; Name and User ID) plus swift-crypto's, which ships its own. Don't copy package
