@@ -74,6 +74,7 @@ Flow (current build) page:
 | Trips, Activity, Profile | `TabView` tabs |
 | Trip detail, Add members, Expense details | pushed in `NavigationStack` (Expense details' Edit opens the Expense form sheet) |
 | Add trip, Expense form | `.sheet` with its own `NavigationStack` (payer and split pickers push inside it) |
+| Stamp builder | `.sheet` (large) from Add trip and Edit trip, over the form; Figma › Flow · Net model › [Stamp builder](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=367-3652) |
 | Apple Cash guide | `.sheet` (large, scrolls) over the Payment page; Open Messages leaves for the Messages app, and coming back opens the Log Payment Sheet |
 | Log Payment Sheet | `.sheet` with medium detent, over the Payment page, when you come back from a pay app |
 | Settle up, Payment, Method | pushed in the trip's `NavigationStack`; Method is a pushed list |

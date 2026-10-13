@@ -3,7 +3,10 @@ import SwiftUI
 // A trip stamp: wordless, single ink, a little crooked, never cropped.
 // Stored on the trip (trips.stamp) so every device draws the same one.
 
-enum StampShape: String, CaseIterable, Codable { case ticket, circle, octagon, rounded, hexagon, postage }
+enum StampShape: String, CaseIterable, Codable {
+    case ticket, circle, octagon, rounded, hexagon, postage
+    var spokenName: String { rawValue.capitalized }
+}
 
 enum StampGlyph: String, CaseIterable, Codable {
     case road, house, market, plane, palm, mountain, tent, boat, sun
@@ -21,10 +24,25 @@ enum StampGlyph: String, CaseIterable, Codable {
         case .sun: "sun.max"
         }
     }
+    /// What VoiceOver says; matches the picture (`market` is a cart, `palm` a beach umbrella).
+    var spokenName: String {
+        switch self {
+        case .road: "Road"
+        case .house: "House"
+        case .market: "Shopping"
+        case .plane: "Plane"
+        case .palm: "Beach"
+        case .mountain: "Mountains"
+        case .tent: "Tent"
+        case .boat: "Sailboat"
+        case .sun: "Sun"
+        }
+    }
 }
 
 enum StampInk: String, CaseIterable, Codable {
     case blue, green, red, purple, orange, teal
+    var spokenName: String { rawValue.capitalized }
 
     var ink: Color {
         switch self {
@@ -80,6 +98,9 @@ struct StampSpec: Codable, Hashable {
         return random(using: &rng)
     }
 
+    /// "Sailboat, circle, teal": the stamp as VoiceOver reads it.
+    var spokenName: String { "\(glyph.spokenName), \(shape.rawValue), \(ink.rawValue)" }
+
     /// True when the rotated, offset art box stays inside a square frame of side 1.
     var fitsFrame: Bool {
         let a = Self.artScale, t = rotation * .pi / 180
@@ -90,6 +111,8 @@ struct StampSpec: Codable, Hashable {
 
 struct StampView: View {
     let spec: StampSpec
+    /// Off for the builder's shape tiles, which show the outline alone.
+    var showsGlyph = true
 
     var body: some View {
         GeometryReader { geo in
@@ -97,8 +120,10 @@ struct StampView: View {
             let art = side * StampSpec.artScale
             ZStack {
                 StampBorder(shape: spec.shape, size: art)
-                Image(systemName: spec.glyph.systemImage)
-                    .font(.system(size: art * glyphScale, weight: .regular))
+                if showsGlyph {
+                    Image(systemName: spec.glyph.systemImage)
+                        .font(.system(size: art * glyphScale, weight: .regular))
+                }
             }
             .foregroundStyle(spec.ink.ink)
             .frame(width: art, height: art)
