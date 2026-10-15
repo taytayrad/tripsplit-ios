@@ -30,7 +30,8 @@ struct SignInView: View {
                 guard case .success(let auth) = result,
                       let credential = auth.credential as? ASAuthorizationAppleIDCredential,
                       let token = credential.identityToken.flatMap({ String(data: $0, encoding: .utf8) }) else { return }
-                Task { await app.signInWithApple(idToken: token, nonce: nonce, fullName: credential.fullName) }
+                Task { await app.signInWithApple(idToken: token, nonce: nonce, fullName: credential.fullName,
+                                                 authorizationCode: credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }) }
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)  // HIG: black vanishes on a dark background
             .frame(height: 50)

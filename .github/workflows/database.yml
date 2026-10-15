@@ -32,6 +32,6 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.9.7
-      - run: deno check supabase/functions/push/index.ts
-      - run: deno lint supabase/functions/push
+      - run: deno check supabase/functions/push/index.ts supabase/functions/apple/index.ts
+      - run: deno lint supabase/functions/push supabase/functions/apple
       - run: deno test supabase/functions/push

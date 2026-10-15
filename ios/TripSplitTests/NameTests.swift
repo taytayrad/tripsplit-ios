@@ -10,6 +10,7 @@ struct NameTests {
         ("Atish D.", "Atish D."),
         ("Mary Ann Smith", "Mary S."),
         ("  Atish   Dey  ", "Atish D."),
+        ("Deleted account", "Deleted account"),  // TRIP-28: never "Deleted a."
     ])
     func shownNameIsFirstNameAndLastInitial(_ stored: String, _ shown: String) {
         #expect(PersonName.shown(stored) == shown)

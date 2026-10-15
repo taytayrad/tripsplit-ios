@@ -323,6 +323,11 @@ Deno.test("removal statements match ActivityCopyTests", () => {
     { ...removed, actorId: jordan, actorName: "Jordan", removedId: null },
     'Jordan left "Coast Road"',
   );
+  // A deleted account keeps its leaves: the snapshot, not the live name, decides (TRIP-28).
+  expect(
+    { ...removed, actorId: jordan, actorName: "Deleted account", actorSnapshot: "Jordan", subject: "Jordan", removedId: null },
+    'Deleted account left "Coast Road"',
+  );
   expect(
     { ...removed, subject: "Alex Kim", removedId: null },
     'Taylor removed you from "Coast Road"',

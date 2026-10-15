@@ -39,6 +39,9 @@ enum ActivityCopy {
         var subject: String? = nil
         /// Who was removed. When nil, a subject equal to the actor's name is a leave.
         var removedId: UUID? = nil
+        /// The actor's name when the row was written (`actor_name`). A leave compares against it, so renaming the
+        /// profile ("Deleted account") doesn't turn a past leave into a removal. Nil falls back to `actorName`.
+        var actorSnapshot: String? = nil
         var deltas: [UUID: Int] = [:]
         /// Snapshotted on the event. The live expense is not a source: a later edit would rewrite this row.
         var expensePayerId: UUID? = nil
@@ -123,7 +126,7 @@ enum ActivityCopy {
     private static func left(_ event: Event) -> Bool {
         if let removedId = event.removedId { return removedId == event.actorId }
         guard let subject = event.subject, !subject.isEmpty else { return false }
-        return event.actorName == subject
+        return (event.actorSnapshot ?? event.actorName) == subject
     }
 
     // MARK: Dollar line

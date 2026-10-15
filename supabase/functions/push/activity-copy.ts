@@ -6,6 +6,8 @@ export interface ActivityFacts {
   tripName: string;
   subject?: string | null;
   removedId?: string | null;
+  /** The actor's name when the row was written (actor_name); a leave compares against it. */
+  actorSnapshot?: string | null;
   deltas?: Record<string, number>;
   expensePayerId?: string | null;
   expenseAmountCents?: number | null;
@@ -18,6 +20,7 @@ export interface ActivityFacts {
 }
 
 function shown(name: string): string {
+  if (name === "Deleted account") return name; // TRIP-28: shown in full, like PersonName.shown
   const words = name.trim().split(/\s+/u).filter(Boolean);
   if (words.length < 2) return words[0] ?? "";
   // Swift's first Character is a grapheme, including composed initials.
@@ -110,7 +113,7 @@ export function activityCopy(
     case "member_removed": {
       const left = e.removedId != null
         ? e.removedId === e.actorId
-        : !!e.subject && e.subject === e.actorName;
+        : !!e.subject && e.subject === (e.actorSnapshot ?? e.actorName);
       const removedYou = e.removedId != null
         ? e.removedId === viewer
         : !!e.subject && e.subject === viewerName;

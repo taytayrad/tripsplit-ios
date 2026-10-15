@@ -14,6 +14,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
 | Remove a member | active member | only when that member's net on the trip is $0 |
 | Leave a trip | active member, yourself | only when your net on the trip is $0 |
+| Delete your account | yourself | only when your net is $0 on every trip, including deleted trips (`delete_account`) |
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |
 | Add, edit, or delete an expense | active member | |

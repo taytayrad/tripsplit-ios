@@ -112,9 +112,14 @@ final class AppModel {
         }
     }
 
-    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents?) async {
+    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents?, authorizationCode: String?) async {
         do {
             try await db.auth.signInWithIdToken(credentials: .init(provider: .apple, idToken: idToken, nonce: nonce))
+            // Store what Delete account needs to revoke Sign in with Apple (TRIP-28). The code is single-use; if the
+            // exchange fails, sign-in still stands and the next sign-in tries again.
+            if let authorizationCode {
+                Task { try? await db.functions.invoke("apple", options: FunctionInvokeOptions(body: ["code": authorizationCode])) }
+            }
             // Apple shares the name only on the very first sign-in.
             if let name = fullName.map({ PersonNameComponentsFormatter().string(from: $0) }), !name.isEmpty,
                let id = userId {
@@ -134,6 +139,20 @@ final class AppModel {
         await tokenSave?.value
         if let token = deviceToken { try? await db.from("device_tokens").delete().eq("token", value: token).run() }
         try? await db.auth.signOut()
+    }
+
+    /// Trips, live or deleted, where you still have a balance: Delete account waits for 0 (TRIP-28).
+    func unsettledTripCount() async throws -> Int {
+        let count: Int = try await db.rpc("my_unsettled_trip_count").execute().value
+        return count
+    }
+
+    /// Deletes your account, only at $0 everywhere, then signs out on this phone. The server deleted the sign-in, so
+    /// the sign-out is local; Sign in with Apple is revoked after the server's commit.
+    func deleteAccount() async throws {
+        try requireOnline()
+        try await db.rpc("delete_account").run()
+        try? await db.auth.signOut(scope: .local)
     }
 
     #if DEBUG

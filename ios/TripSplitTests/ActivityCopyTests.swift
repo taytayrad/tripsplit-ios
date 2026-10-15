@@ -189,6 +189,13 @@ struct ActivityCopyTests {
                "Jordan left \"Coast Road\"")
     }
 
+    /// A deleted account keeps its leaves: the snapshotted name decides, not the live "Deleted account" (TRIP-28).
+    @Test func aDeletedAccountsLeaveStaysALeave() {
+        expect(.init(kind: .memberRemoved, actorId: Self.jordan, actorName: "Deleted account", tripName: "Coast Road",
+                      subject: "Jordan", actorSnapshot: "Jordan"),
+               "Deleted account left \"Coast Road\"")
+    }
+
     @Test func removedYouWhenTheSubjectIsYourName() {
         expect(.init(kind: .memberRemoved, actorId: Self.taylor, actorName: "Taylor", tripName: "Coast Road",
                       subject: "Alex Kim"),

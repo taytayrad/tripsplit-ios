@@ -11,6 +11,14 @@ struct ProfileView: View {
     @State private var permission: UNAuthorizationStatus?
     @State private var confirmSignOut = false
     @State private var failure: Failure?
+    /// Trips, deleted ones too, where you still have a balance; nil until read.
+    @State private var unsettled: Int?
+    @State private var deleteAlert: DeleteAlert?
+    @State private var deleting = false
+    @State private var settling = false
+
+    /// Delete account's two alerts (Figma F6, F7).
+    private enum DeleteAlert { case notSettled(Int), confirm }
 
     var body: some View {
         NavigationStack {
@@ -79,17 +87,35 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    // ponytail: shown but inactive until Delete account ships (TRIP-28).
-                    Button("Delete account", role: .destructive) {}.disabled(true)
+                    Button("Delete account", role: .destructive) { Task { await startDelete() } }.disabled(deleting)
                 } footer: {
                     VStack(spacing: Spacing.lg) {
-                        Text("You can delete your account once you’re settled on every trip.")
+                        if (unsettled ?? 0) > 0 { Text("You can delete your account once you’re settled on every trip.") }
                         Text(Self.version).frame(maxWidth: .infinity)
                     }
                 }
             }
             .navigationTitle("Profile")
-            .task { await readPermission() }
+            .task {
+                await readPermission()
+                unsettled = try? await app.unsettledTripCount()
+            }
+            .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
+            .alert(deleteTitle, isPresented: .init(get: { deleteAlert != nil }, set: { if !$0 { deleteAlert = nil } }),
+                   presenting: deleteAlert) { alert in
+                Button("Cancel", role: .cancel) {}
+                switch alert {
+                case .notSettled: Button("Settle up") { settling = true }
+                case .confirm: Button("Delete", role: .destructive) { Task { await deleteAccount() } }
+                }
+            } message: { alert in
+                switch alert {
+                case .notSettled(let n):
+                    Text("You still have a balance on \(n == 1 ? "1 trip" : "\(n) trips"). You can delete your account once you’re settled everywhere.")
+                case .confirm:
+                    Text("You’ll leave every trip, and your name and pay methods are erased. Past expenses stay on each trip as “Deleted account.” This can’t be undone.")
+                }
+            }
             .onChange(of: scenePhase) { if scenePhase == .active { Task { await readPermission() } } }
             .alert("Sign out of TripSplit?", isPresented: $confirmSignOut) {
                 Button("Cancel", role: .cancel) {}
@@ -97,6 +123,30 @@ struct ProfileView: View {
             } message: { Text("Your trips and balances stay saved. Sign back in with Apple anytime.") }
             .failureAlert($failure)
         }
+    }
+
+    private var deleteTitle: String {
+        if case .notSettled = deleteAlert { return "Settle Up First" }
+        return "Delete Your Account?"
+    }
+
+    /// Checks your balances first: unsettled opens F6 (Settle up), settled opens F7 (confirm).
+    private func startDelete() async {
+        do {
+            let n = try await app.unsettledTripCount()
+            unsettled = n
+            deleteAlert = n > 0 ? .notSettled(n) : .confirm
+        } catch {
+            failure = Failure(title: "Couldn’t check your balances", error: error) { await startDelete() }
+        }
+    }
+
+    /// Deleting signs you out to the Sign in screen, also when the Apple revoke fails later.
+    private func deleteAccount() async {
+        deleting = true
+        defer { deleting = false }
+        do { try await app.deleteAccount() }
+        catch { failure = Failure(title: "Couldn’t delete your account", error: error) { await deleteAccount() } }
     }
 
     /// "TripSplit 1.0 (12)".

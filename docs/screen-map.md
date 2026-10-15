@@ -64,7 +64,7 @@ Flow (current build) page:
 | [Activity](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3495) | Feed, undelete alert |
 | [Balance](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3497) | Your Balance sheet. **Retired (TRIP-13)**; don't build. |
 | [Person & Payments](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3499) | Person screens, log sheets, settled. **Retired (TRIP-13)**; the Log Payment Sheet component is still used. |
-| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | **Retired (TRIP-22)**; build from Flow · Net model › [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=297-1283) (F1–F8) |
+| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | **Retired (TRIP-22)**; build from Flow · Net model › [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=297-1283) (F1–F8; F6 "Settle Up First" and F7 "Delete Your Account?" are alerts from Delete account) |
 | [Prototype only](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3503) | Stand-ins. **Don't build.** |
 
 ## Presentation

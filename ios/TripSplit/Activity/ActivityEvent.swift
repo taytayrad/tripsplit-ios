@@ -4,7 +4,7 @@ import Foundation
 /// Newest first is the caller's `.order("created_at", ascending: false)`.
 enum ActivityQuery {
     static let columns = [
-        "id", "trip_id", "kind", "actor_id", "subject", "deltas", "expense_id", "created_at",
+        "id", "trip_id", "kind", "actor_id", "actor_name", "subject", "deltas", "expense_id", "created_at",
         "expense_payer_id", "expense_amount_cents", "expense_payer_share_cents",
         "actor:profiles!activity_events_actor_id_fkey(display_name)",
         "trips!activity_events_trip_id_fkey(name, stamp, deleted_at)",
@@ -29,6 +29,7 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
     let kind: ActivityKind
     let actorId: UUID
     let actorName: String
+    let actorSnapshot: String?
     let tripName: String
     let stamp: StampSpec
     /// Set when the trip is soft-deleted. The row stays in Activity.
@@ -97,6 +98,7 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
         let viewerShare = expensePayerId == viewer ? expensePayerShareCents : nil
         return ActivityCopy.Event(
             kind: kind, actorId: actorId, actorName: actorName, tripName: tripName, subject: subject,
+            actorSnapshot: actorSnapshot,
             deltas: deltas,
             expensePayerId: expensePayerId, expenseAmountCents: expenseAmountCents, viewerShareCents: viewerShare,
             payerId: payment?.payerId, payeeId: payment?.payeeId,
@@ -130,7 +132,7 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case id, kind, subject, deltas, actor, trips, payments
-        case tripId = "trip_id", actorId = "actor_id", expenseId = "expense_id", createdAt = "created_at"
+        case tripId = "trip_id", actorId = "actor_id", actorSnapshot = "actor_name", expenseId = "expense_id", createdAt = "created_at"
         case expensePayerId = "expense_payer_id", expenseAmountCents = "expense_amount_cents"
         case expensePayerShareCents = "expense_payer_share_cents"
     }
@@ -148,6 +150,7 @@ struct ActivityEvent: Decodable, Identifiable, Hashable, Sendable {
         expensePayerShareCents = try c.decodeIfPresent(Int.self, forKey: .expensePayerShareCents)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         actorName = try c.decodeIfPresent(NameRow.self, forKey: .actor)?.displayName ?? ""
+        actorSnapshot = try c.decodeIfPresent(String.self, forKey: .actorSnapshot)
         let trip = try c.decode(TripRow.self, forKey: .trips)
         tripName = trip.name
         stamp = trip.stamp
