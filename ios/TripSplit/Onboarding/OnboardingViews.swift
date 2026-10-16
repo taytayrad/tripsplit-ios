@@ -80,6 +80,8 @@ struct NotificationsView: View {
 
 struct PayMethodsView: View {
     @Environment(AppModel.self) private var app
+    @State private var name = ""
+    @State private var saving = false
     @State private var zelle = false
     @State private var appleCash = false
     /// Set on the Venmo screen; nil means no Venmo.
@@ -93,9 +95,16 @@ struct PayMethodsView: View {
                 Text("Pick what you use. Friends only see a pay button for an app you both have.")
                     .font(.subheadline).foregroundStyle(Color.tsSecondary)
             }
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding([.horizontal, .top], Spacing.lg)
             Form {
+                Section {
+                    TextField("Your name", text: $name).textContentType(.name)
+                        .textInputAutocapitalization(.words).submitLabel(.done)
+                } header: { Text("Name") } footer: {
+                    Text("Friends see your name on every trip.")
+                }
                 // Figma Profile [F8]: Venmo is one row whose value is the username, like Profile.
                 Section {
                     NavigationLink { VenmoView(username: venmoUsername) { venmoUsername = $0 } } label: {
@@ -106,18 +115,36 @@ struct PayMethodsView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .disabled(saving)
             VStack(spacing: Spacing.sm) {
                 Button("Continue") {
-                    Task { await app.savePayMethods(venmo: venmoUsername, zelle: zelle, appleCash: appleCash) }
+                    Task { await finish(skipPayMethods: false) }
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Button("Skip for now") { Task { await app.finishOnboarding() } }.foregroundStyle(Color.accentColor)
+                Button("Skip pay methods") { Task { await finish(skipPayMethods: true) } }
             }
+            .disabled(saving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .padding(.horizontal, Spacing.lg)
         }
         .padding(.bottom, Spacing.lg)
         .background(Color(.systemGroupedBackground))
         .toolbar(.hidden, for: .navigationBar)
         }
+        .onAppear {
+            name = app.profile?.displayName ?? ""
+            venmoUsername = app.profile?.venmoUsername
+            zelle = app.profile?.hasZelle ?? false
+            appleCash = app.profile?.hasAppleCash ?? false
+        }
+        .onChange(of: app.profile?.displayName) { _, newName in
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = newName ?? "" }
+        }
+    }
+
+    private func finish(skipPayMethods: Bool) async {
+        saving = true
+        defer { saving = false }
+        if skipPayMethods { await app.finishOnboarding(name: name) }
+        else { await app.savePayMethods(name: name, venmo: venmoUsername, zelle: zelle, appleCash: appleCash) }
     }
 }

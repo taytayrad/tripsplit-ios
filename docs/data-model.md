@@ -18,6 +18,7 @@ erDiagram
     profiles {
         uuid id PK "= auth.users.id; no FK, outlives a deleted account"
         text display_name
+        timestamptz deleted_at "server-owned; null for a live account"
         text venmo_username "nullable"
         bool has_zelle
         bool has_apple_cash
@@ -140,10 +141,14 @@ Every multi-row money write is one function in one transaction, so invariants ho
 | `delete_trip(id)` / `undelete_trip(id)` | sets or clears `deleted_at`, logs the event |
 | `push_recipients(event)` | service role only. The people to push for one activity event: the "Push to" column of `docs/events.md`, minus the actor and anyone whose matching `notify_*` is off |
 | `delete_account()` | only at $0 on every trip, deleted trips included ("settle up on every trip before deleting your account"). Deletes a live trip where you're the last member (logs `trip_deleted`, so its invite dies), leaves every trip with the `remove_settled` writes, renames the profile "Deleted account" and clears its pay methods and `notify_*`, deletes your device tokens, queues the Sign in with Apple revoke (pg_net, after commit), and deletes the auth user. The profile row stays for friends' history |
-| `my_unsettled_trip_count()` | trips, live or deleted, where your net isn't $0 (`private.net_including_deleted`; `member_nets` stays live-only) |
+| `my_unsettled_trip_count()` | trips, live or deleted, where your net isn't $0, including legacy removed-with-keep memberships (`private.net_including_deleted`; `member_nets` stays live-only) |
 | `register_device_token(token)` | saves this phone's APNs token for you and removes it from any other account (`token` is unique), so a phone gets one account's pushes at a time |
 
 `apple_tokens (user_id PK, refresh_token, updated_at)` holds Sign in with Apple refresh tokens for the revoke; no FK so it outlives the auth user, and only the service role (the `apple` Edge Function) can touch it. `activity_events.actor_name` is filled by a before-insert trigger when omitted.
+
+`profiles.deleted_at` is set by `delete_account`, never inferred from `display_name` and never client-writable. The hardening migration backfills existing deleted profiles from missing `auth.users` rows and clears their personal settings and device tokens again. Add members reads this marker; a living person named "Deleted account" remains eligible.
+
+Account access and new/reactivated memberships take a shared transaction advisory lock on `hashtextextended('account:' || user_id, 0)`, then verify that the auth user exists and the profile is not deleted. `delete_account` takes the exclusive version first, then locks every membership's trip in id order and checks every net, including removed memberships and deleted trips. It checks the net again before removing each active membership. The membership trigger runs before the member-limit trigger takes its trip lock. This fixes the membership set for deletion: an earlier addition is included in its balance check; a later addition waits and is refused after deletion commits.
 
 ## Reads (calculated)
 

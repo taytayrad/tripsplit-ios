@@ -43,6 +43,8 @@ Never paste the key or the secret into the repo, Linear, or chat.
 
 ## Deploy
 
+Apply all database migrations, including `20261016043147_delete_account_hardening.sql`, before distributing the updated app. It selects `profiles.deleted_at`; a backend without that column cannot load its profiles. The hardening migration also backfills deletion status for accounts already deleted.
+
 ```sh
 supabase functions deploy apple --project-ref <project-ref> --no-verify-jwt
 supabase db push --project-ref <project-ref>

@@ -1,7 +1,7 @@
 -- Delete account (TRIP-28).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(26);
 
 -- Refused while a live trip has a balance; nothing changes.
 select tests.users('owe', 'pal');
@@ -76,6 +76,26 @@ select tests.clear_authentication();
 select is((select actor_name from public.activity_events
            where trip_id = tests.id('shared') and kind = 'member_removed' and actor_id = tests.id('jordan')), 'jordan',
           'the leave keeps the actor''s name from before the rename');
+
+-- Signing up again with the same name creates a separate person, with no old membership or debt.
+insert into tests.names (k, id) values ('jordan-returned', tests.create_user('jordan'));
+select tests.authenticate_as(tests.id('jordan-returned'));
+select is((select count(*)::int from public.trips), 0, 'the new account starts without trips');
+select lives_ok(format('select public.join_trip(%L)', (select token from tests.names where k = 'shared')),
+                'the new account can rejoin the shared trip by invite');
+select is((select count(*)::int from public.trips where id = tests.id('shared')), 1,
+          'the joined trip is readable on the new account');
+select is((select count(*)::int from public.trip_members m
+           left join public.profiles p on p.id = m.user_id
+           where m.trip_id = tests.id('shared') and p.id is null), 0,
+          'every embedded member profile is readable, including the deleted account');
+select is((select coalesce(sum(cents), 0)::int from public.my_trip_nets()), 0,
+          'the new account has no inherited balance');
+select tests.authenticate_as(tests.id('alex'));
+select is((select display_name from public.profiles where id = tests.id('jordan-returned')), 'jordan',
+          'friends can read the new account''s name');
+select is((select display_name from public.profiles where id = tests.id('jordan')), 'Deleted account',
+          'the old account stays anonymized');
 
 select * from finish();
 rollback;

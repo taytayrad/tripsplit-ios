@@ -24,7 +24,7 @@ sequenceDiagram
         A->>Store: Installs, opens app
         Note over A,App: May need to tap the link again<br/>(no Universal Links yet)
     end
-    App->>App: Sign in with Apple (if needed) → notifications → pay methods
+    App->>App: Sign in with Apple (if needed) → notifications → name and pay methods
     App->>DB: join_trip(token)
     DB->>DB: Insert trip_member (no-op if already a member)<br/>Insert activity_event member_joined
     DB-->>App: Trip

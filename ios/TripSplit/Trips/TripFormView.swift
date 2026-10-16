@@ -361,7 +361,8 @@ struct AddMembersView: View {
                     ForEach(trip.members, id: \.userId) { Text($0.userId == app.userId ? "You" : PersonName.shown($0.profiles.displayName)) }
                 }
 
-                let known = app.people.filter { !onTrip.contains($0.id) && $0.displayName != PersonName.deletedAccount }  // TRIP-28.sorted { $0.displayName < $1.displayName }
+                let known = app.people.filter { !onTrip.contains($0.id) && $0.deletedAt == nil }
+                    .sorted { $0.displayName < $1.displayName }
                 if !known.isEmpty {
                     Section {
                         ForEach(known, id: \.id) { person in
