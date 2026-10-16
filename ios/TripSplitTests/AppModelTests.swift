@@ -5,7 +5,7 @@ import Testing
 
 @Suite(.serialized)
 struct AppModelTests {
-    @Test(.timeLimit(.minutes(1)), arguments: ["trips", "failure"])
+    @Test(.timeLimit(.minutes(1)), arguments: ["trips", "failure", "signedOut"])
     @MainActor func coldLaunchWaitsForItsFirstLoad(_ result: String) async throws {
         let server = AppServer()
         await server.holdTrips(result)
@@ -29,15 +29,52 @@ struct AppModelTests {
         await server.waitFor("start:GET /rest/v1/trips")
 
         #expect(app.stage == .loading)
+        if result == "signedOut" { try? await db.auth.signOut(scope: .local) }
         await server.release("GET /rest/v1/trips")
         while app.stage == .loading { try await Task.sleep(for: .milliseconds(1)) }
-        #expect(app.stage == .ready)
+        #expect(app.stage == (result == "signedOut" ? .signedOut : .ready))
         #expect(app.loaded == (result == "trips"))
         #expect(app.loadFailed == (result == "failure"))
         #expect(app.trips.map(\.name) == (result == "trips" ? ["Weekend away"] : []))
+        if result == "signedOut" { #expect(app.error == nil) }
 
         session.cancel()
         await session.value
+    }
+
+    @Test(.timeLimit(.minutes(1)), arguments: [true, false]) @MainActor
+    func pendingInviteFinishesBeforeTripsOpen(returning: Bool) async throws {
+        let server = AppServer()
+        await server.holdTrips("invite")
+        let db = client(server: server)
+        try await db.auth.signInAnonymously()
+        let key = "onboarded.\(try #require(db.auth.currentUser?.id))"
+        let oldOnboarded = UserDefaults.standard.object(forKey: key)
+        let oldInvite = UserDefaults.standard.string(forKey: "pendingInvite")
+        defer {
+            UserDefaults.standard.set(oldOnboarded, forKey: key)
+            UserDefaults.standard.set(oldInvite, forKey: "pendingInvite")
+        }
+        UserDefaults.standard.set(returning, forKey: key)
+        let app = AppModel(db: db)
+        app.pendingInvite = "test"
+        if !returning { app.stage = .payMethods }
+        let entry = Task {
+            if returning { await app.start() }
+            else { await app.finishOnboarding(name: "Sam") }
+        }
+        defer { entry.cancel() }
+        await server.waitFor("start:POST /rest/v1/rpc/join_trip")
+        #expect(app.stage == (returning ? .loading : .payMethods))
+        #expect(app.trips.isEmpty)
+        await server.release("POST /rest/v1/rpc/join_trip")
+        while app.stage != .ready { try await Task.sleep(for: .milliseconds(1)) }
+        #expect(app.pendingInvite == nil)
+        #expect(app.trips.map(\.name) == ["Weekend away"])
+        #expect(app.welcomeTrip?.id == app.trips.first?.id)
+        #expect(app.welcomeTrip != nil)
+        entry.cancel()
+        await entry.value
     }
 
     @Test(.timeLimit(.minutes(1))) @MainActor
@@ -95,6 +132,7 @@ private actor AppServer {
     private var waiting: [String: CheckedContinuation<Void, Never>] = [:]
     private var held: [String: CheckedContinuation<Void, Never>] = [:]
     private var tripsResult: String?
+    private var joinedInvite = false
 
     func holdTrips(_ result: String) {
         tripsResult = result
@@ -112,10 +150,15 @@ private actor AppServer {
         events.append("start:" + route)
         waiting.removeValue(forKey: "start:" + route)?.resume()
         if (tripsResult == nil && ["PATCH /rest/v1/profiles", "POST /rest/v1/rpc/register_device_token", "POST /rest/v1/rpc/delete_account"].contains(route))
-            || (route == "GET /rest/v1/trips" && tripsResult != nil) {
+            || route == "POST /rest/v1/rpc/join_trip"
+            || (route == "GET /rest/v1/trips" && tripsResult != nil && tripsResult != "invite") {
             await withCheckedContinuation { held[route] = $0 }
         }
         events.append("end:" + route)
+        if route == "POST /rest/v1/rpc/join_trip" {
+            joinedInvite = true
+            return (200, Data("\"\(id)\"".utf8))
+        }
         if request.url!.path == "/auth/v1/signup" {
             let body: [String: Any] = ["access_token": "test", "token_type": "bearer", "expires_in": 3600,
                                       "expires_at": Date.now.timeIntervalSince1970 + 3600, "refresh_token": "test",
@@ -133,7 +176,7 @@ private actor AppServer {
             let trip = """
             [{"id":"\(id)","name":"Weekend away","stamp":{"shape":"ticket","glyph":"road","ink":"blue","rotation":-6,"offsetX":0,"offsetY":0},"invite_token":"test","created_by":"\(id)","created_at":"2026-10-15T00:00:00Z","trip_members":[]}]
             """
-            return (200, Data((tripsResult == "trips" ? trip : "[]").utf8))
+            return (200, Data((tripsResult == "trips" || joinedInvite ? trip : "[]").utf8))
         }
         if request.url!.path == "/auth/v1/logout" { return (400, Data("{\"msg\":\"Logout failed\"}".utf8)) }
         if ["/rest/v1/rpc/my_trip_nets", "/rest/v1/rpc/my_trip_settlements"].contains(request.url!.path) {

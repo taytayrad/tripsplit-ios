@@ -117,7 +117,7 @@ final class AppModel {
                 await loadInvitePreview()
             } else {
                 await afterSignIn()
-                await startRealtime()
+                if userId == session?.user.id { await startRealtime() }
             }
         }
     }
@@ -193,10 +193,13 @@ final class AppModel {
         let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
         let nextStage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
         // Keep the loading surface until we know whether the trip list is actually empty.
-        if nextStage == .ready { await refresh() }
+        if nextStage == .ready {
+            await refresh()
+            guard userId == id else { return }
+            await joinPendingInvite()
+        }
         guard userId == id else { return }
         stage = nextStage
-        if stage == .ready { await joinPendingInvite() }
     }
 
     // MARK: Onboarding
@@ -266,8 +269,9 @@ final class AppModel {
         UserDefaults.standard.set(true, forKey: "onboarded.\(id)")
         await refresh()
         guard userId == id else { return }
-        stage = .ready
         await joinPendingInvite()
+        guard userId == id else { return }
+        stage = .ready
         await startRealtime()
     }
 
@@ -542,12 +546,14 @@ final class AppModel {
     }
 
     private func joinPendingInvite() async {
-        guard let token = pendingInvite else { return }
+        guard let token = pendingInvite, let user = userId else { return }
         do {
             let alreadyOn = trips.contains { $0.inviteToken == token }
             let id: UUID = try await db.rpc("join_trip", params: ["p_invite_token": token]).value()
+            guard userId == user else { return }
             pendingInvite = nil; invitePreview = nil
             await refresh()
+            guard userId == user else { return }
             // Someone already on the trip just opens it; newcomers get the welcome.
             if !alreadyOn { welcomeTrip = trip(id); justJoinedTrip = id }
         } catch let e as PostgrestError where e.message.contains("invite link not found") {
