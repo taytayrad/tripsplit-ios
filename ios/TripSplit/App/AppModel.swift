@@ -191,8 +191,12 @@ final class AppModel {
         await loadProfile()
         guard let id = userId else { return }
         let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
-        stage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
-        if stage == .ready { await refresh(); await joinPendingInvite() }
+        let nextStage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
+        // Keep the loading surface until we know whether the trip list is actually empty.
+        if nextStage == .ready { await refresh() }
+        guard userId == id else { return }
+        stage = nextStage
+        if stage == .ready { await joinPendingInvite() }
     }
 
     // MARK: Onboarding
@@ -260,9 +264,11 @@ final class AppModel {
             return
         }
         UserDefaults.standard.set(true, forKey: "onboarded.\(id)")
-        stage = .ready
         await refresh()
+        guard userId == id else { return }
+        stage = .ready
         await joinPendingInvite()
+        await startRealtime()
     }
 
     /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the

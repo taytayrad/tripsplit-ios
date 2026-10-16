@@ -3,18 +3,49 @@ import Supabase
 import Testing
 @testable import TripSplit
 
-struct AccountDeletionTests {
+@Suite(.serialized)
+struct AppModelTests {
+    @Test(.timeLimit(.minutes(1)), arguments: ["trips", "failure"])
+    @MainActor func coldLaunchWaitsForItsFirstLoad(_ result: String) async throws {
+        let server = AppServer()
+        await server.holdTrips(result)
+        let storage = AppStorage()
+        let signedIn = client(server: server, storage: storage)
+        try await signedIn.auth.signInAnonymously()
+        let key = "onboarded.\(try #require(signedIn.auth.currentUser?.id))"
+        // A cold launch creates both the client and app model again, retaining only saved credentials.
+        let db = client(server: server, storage: storage)
+        let oldOnboarded = UserDefaults.standard.object(forKey: key)
+        let oldInvite = UserDefaults.standard.string(forKey: "pendingInvite")
+        defer {
+            UserDefaults.standard.set(oldOnboarded, forKey: key)
+            UserDefaults.standard.set(oldInvite, forKey: "pendingInvite")
+        }
+        UserDefaults.standard.set(true, forKey: key)
+        let app = AppModel(db: db)
+        app.pendingInvite = nil
+        let session = Task { await app.start() }
+        defer { session.cancel() }
+        await server.waitFor("start:GET /rest/v1/trips")
+
+        #expect(app.stage == .loading)
+        await server.release("GET /rest/v1/trips")
+        while app.stage == .loading { try await Task.sleep(for: .milliseconds(1)) }
+        #expect(app.stage == .ready)
+        #expect(app.loaded == (result == "trips"))
+        #expect(app.loadFailed == (result == "failure"))
+        #expect(app.trips.map(\.name) == (result == "trips" ? ["Weekend away"] : []))
+
+        session.cancel()
+        await session.value
+    }
+
     @Test(.timeLimit(.minutes(1))) @MainActor
     func deletionDrainsSavesAndRefusesNewWrites() async throws {
         let oldToken = UserDefaults.standard.string(forKey: "apnsToken")
         defer { UserDefaults.standard.set(oldToken, forKey: "apnsToken") }
-        let server = AccountServer()
-        AccountURLProtocol.server = server
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [AccountURLProtocol.self]
-        let db = SupabaseClient(supabaseURL: URL(string: "https://account-test.local")!, supabaseKey: "test",
-                                options: .init(auth: .init(storage: AccountStorage(), autoRefreshToken: false),
-                                               global: .init(session: URLSession(configuration: config))))
+        let server = AppServer()
+        let db = client(server: server)
         let app = AppModel(db: db)
         await app.signInAsTestPerson(" \n\t ")
         #expect(app.error == "Enter your name to continue.")
@@ -46,13 +77,28 @@ struct AccountDeletionTests {
         #expect(events.filter { $0 == "start:POST /rest/v1/rpc/register_device_token" }.count == 1)
         #expect(db.auth.currentUser == nil)  // Logout returns an error, but local credentials are already gone.
     }
+
+    private func client(server: AppServer, storage: AppStorage = AppStorage()) -> SupabaseClient {
+        AppURLProtocol.server = server
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [AppURLProtocol.self]
+        return SupabaseClient(supabaseURL: URL(string: "https://app-test.local")!, supabaseKey: "test",
+                              options: .init(auth: .init(storage: storage, autoRefreshToken: false),
+                                             global: .init(session: URLSession(configuration: config)),
+                                             realtime: .init(maxRetryAttempts: 0)))
+    }
 }
 
-private actor AccountServer {
+private actor AppServer {
     let id = "00000000-0000-0000-0000-000000000028"
     var events: [String] = []
     private var waiting: [String: CheckedContinuation<Void, Never>] = [:]
     private var held: [String: CheckedContinuation<Void, Never>] = [:]
+    private var tripsResult: String?
+
+    func holdTrips(_ result: String) {
+        tripsResult = result
+    }
 
     func waitFor(_ event: String) async {
         if events.contains(event) { return }
@@ -65,7 +111,8 @@ private actor AccountServer {
         let route = "\(request.httpMethod ?? "GET") \(request.url!.path)"
         events.append("start:" + route)
         waiting.removeValue(forKey: "start:" + route)?.resume()
-        if ["PATCH /rest/v1/profiles", "POST /rest/v1/rpc/register_device_token", "POST /rest/v1/rpc/delete_account"].contains(route) {
+        if (tripsResult == nil && ["PATCH /rest/v1/profiles", "POST /rest/v1/rpc/register_device_token", "POST /rest/v1/rpc/delete_account"].contains(route))
+            || (route == "GET /rest/v1/trips" && tripsResult != nil) {
             await withCheckedContinuation { held[route] = $0 }
         }
         events.append("end:" + route)
@@ -78,15 +125,27 @@ private actor AccountServer {
             return (200, try! JSONSerialization.data(withJSONObject: body))
         }
         if route == "GET /rest/v1/profiles" {
+            if request.url!.query?.contains("neq.") == true { return (200, Data("[]".utf8)) }
             return (200, Data("{\"id\":\"\(id)\",\"display_name\":\"Sam\",\"has_zelle\":false,\"has_apple_cash\":false}".utf8))
         }
+        if route == "GET /rest/v1/trips" {
+            if tripsResult == "failure" { return (400, Data("{\"message\":\"Couldn’t load\"}".utf8)) }
+            let trip = """
+            [{"id":"\(id)","name":"Weekend away","stamp":{"shape":"ticket","glyph":"road","ink":"blue","rotation":-6,"offsetX":0,"offsetY":0},"invite_token":"test","created_by":"\(id)","created_at":"2026-10-15T00:00:00Z","trip_members":[]}]
+            """
+            return (200, Data((tripsResult == "trips" ? trip : "[]").utf8))
+        }
         if request.url!.path == "/auth/v1/logout" { return (400, Data("{\"msg\":\"Logout failed\"}".utf8)) }
+        if ["/rest/v1/rpc/my_trip_nets", "/rest/v1/rpc/my_trip_settlements"].contains(request.url!.path) {
+            return (200, Data("[]".utf8))
+        }
+        if request.httpMethod == "GET" { return (200, Data("[]".utf8)) }
         return (204, Data())
     }
 }
 
-private final class AccountURLProtocol: URLProtocol, @unchecked Sendable {
-    nonisolated(unsafe) static var server: AccountServer!
+private final class AppURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var server: AppServer!
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -101,7 +160,7 @@ private final class AccountURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
-private final class AccountStorage: AuthLocalStorage, @unchecked Sendable {
+private final class AppStorage: AuthLocalStorage, @unchecked Sendable {
     private let lock = NSLock()
     private var data: [String: Data] = [:]
     func store(key: String, value: Data) { lock.withLock { data[key] = value } }
