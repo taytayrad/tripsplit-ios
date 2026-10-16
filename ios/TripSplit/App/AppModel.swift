@@ -117,7 +117,7 @@ final class AppModel {
                 await loadInvitePreview()
             } else {
                 await afterSignIn()
-                await startRealtime()
+                if userId == session?.user.id { await startRealtime() }
             }
         }
     }
@@ -191,8 +191,15 @@ final class AppModel {
         await loadProfile()
         guard let id = userId else { return }
         let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
-        stage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
-        if stage == .ready { await refresh(); await joinPendingInvite() }
+        let nextStage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
+        // Keep the loading surface until we know whether the trip list is actually empty.
+        if nextStage == .ready {
+            await refresh()
+            guard userId == id else { return }
+            await joinPendingInvite()
+        }
+        guard userId == id else { return }
+        stage = nextStage
     }
 
     // MARK: Onboarding
@@ -260,9 +267,12 @@ final class AppModel {
             return
         }
         UserDefaults.standard.set(true, forKey: "onboarded.\(id)")
-        stage = .ready
         await refresh()
+        guard userId == id else { return }
         await joinPendingInvite()
+        guard userId == id else { return }
+        stage = .ready
+        await startRealtime()
     }
 
     /// Saves fields on your own profile; Profile saves each change as it's made (no Save button). Keys are the
@@ -536,12 +546,14 @@ final class AppModel {
     }
 
     private func joinPendingInvite() async {
-        guard let token = pendingInvite else { return }
+        guard let token = pendingInvite, let user = userId else { return }
         do {
             let alreadyOn = trips.contains { $0.inviteToken == token }
             let id: UUID = try await db.rpc("join_trip", params: ["p_invite_token": token]).value()
+            guard userId == user else { return }
             pendingInvite = nil; invitePreview = nil
             await refresh()
+            guard userId == user else { return }
             // Someone already on the trip just opens it; newcomers get the welcome.
             if !alreadyOn { welcomeTrip = trip(id); justJoinedTrip = id }
         } catch let e as PostgrestError where e.message.contains("invite link not found") {
