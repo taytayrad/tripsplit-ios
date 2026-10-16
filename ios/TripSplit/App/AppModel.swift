@@ -9,7 +9,15 @@ import UserNotifications
 /// App state and every backend call. Views read from it and call its methods.
 @MainActor @Observable
 final class AppModel {
-    enum Stage: Equatable { case loading, signedOut, notifications, payMethods, ready }
+    enum Stage: Equatable {
+        case loading, signedOut, notifications, payMethods, ready
+
+        static func afterSignIn(displayName: String?, onboarded: Bool) -> Self {
+            guard onboarded else { return .notifications }
+            // Apple may omit the name after account deletion. Repair existing blank accounts too.
+            return displayName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? .ready : .payMethods
+        }
+    }
 
     var stage: Stage = .loading
     /// Your profile as shown: the server's, with any edits still saving laid on top (`ProfileSync`).
@@ -61,7 +69,7 @@ final class AppModel {
     /// The latest profile save; the next one waits for it.
     private var profileSave: Task<Void, Error>?
 
-    private let db = Backend.client
+    private let db: SupabaseClient
 
     /// A user-facing message; Debug builds append the underlying error to speed up fixes.
     nonisolated static func describe(_ message: String, _ error: Error) -> String {
@@ -73,7 +81,8 @@ final class AppModel {
     }
     var userId: UUID? { db.auth.currentUser?.id }
 
-    init() {
+    init(db: SupabaseClient = Backend.client) {
+        self.db = db
         pendingInvite = UserDefaults.standard.string(forKey: "pendingInvite")
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let offline = path.status != .satisfied
@@ -91,6 +100,7 @@ final class AppModel {
 
     /// Refuses a write before the request when there's no network (TRIP-33). The caller shows the failure alert.
     private func requireOnline() throws {
+        if signingOut { throw CancellationError() }
         if isOffline { throw URLError(.notConnectedToInternet) }
     }
 
@@ -112,13 +122,19 @@ final class AppModel {
         }
     }
 
-    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents?) async {
+    func signInWithApple(idToken: String, nonce: String, fullName: PersonNameComponents?, authorizationCode: String?) async {
         do {
             try await db.auth.signInWithIdToken(credentials: .init(provider: .apple, idToken: idToken, nonce: nonce))
+            // Store what Delete account needs to revoke Sign in with Apple (TRIP-28). The code is single-use; if the
+            // exchange fails, sign-in still stands and the next sign-in tries again.
+            if let authorizationCode {
+                Task { try? await db.functions.invoke("apple", options: FunctionInvokeOptions(body: ["code": authorizationCode])) }
+            }
             // Apple shares the name only on the very first sign-in.
-            if let name = fullName.map({ PersonNameComponentsFormatter().string(from: $0) }), !name.isEmpty,
+            if let name = fullName.map({ PersonNameComponentsFormatter().string(from: $0).trimmingCharacters(in: .whitespacesAndNewlines) }), !name.isEmpty,
                let id = userId {
                 try await db.from("profiles").update(["display_name": name]).eq("id", value: id).run()
+                await loadProfile()
             }
         } catch { self.error = "Couldn't sign in. Try again." }
     }
@@ -136,9 +152,30 @@ final class AppModel {
         try? await db.auth.signOut()
     }
 
+    /// Trips, live or deleted, where you still have a balance: Delete account waits for 0 (TRIP-28).
+    func unsettledTripCount() async throws -> Int {
+        let count: Int = try await db.rpc("my_unsettled_trip_count").execute().value
+        return count
+    }
+
+    /// Deletes your account, only at $0 everywhere, then signs out on this phone. The server deleted the sign-in, so
+    /// the sign-out is local; Sign in with Apple is revoked after the server's commit.
+    func deleteAccount() async throws {
+        try requireOnline()
+        signingOut = true
+        defer { signingOut = false }
+        await tokenSave?.value
+        _ = await profileSave?.result
+        try await db.rpc("delete_account").run()
+        // The SDK clears its local session before attempting the server logout, which may now fail.
+        try? await db.auth.signOut(scope: .local)
+    }
+
     #if DEBUG
     /// Local development only: a throwaway account, so two simulators can act as two people.
     func signInAsTestPerson(_ name: String) async {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { error = "Enter your name to continue."; return }
         do {
             try await db.auth.signInAnonymously()
             if let id = userId {
@@ -154,8 +191,8 @@ final class AppModel {
         await loadProfile()
         guard let id = userId else { return }
         let onboarded = UserDefaults.standard.bool(forKey: "onboarded.\(id)")
-        stage = onboarded ? .ready : .notifications
-        if onboarded { await refresh(); await joinPendingInvite() }
+        stage = Stage.afterSignIn(displayName: profile?.displayName, onboarded: onboarded)
+        if stage == .ready { await refresh(); await joinPendingInvite() }
     }
 
     // MARK: Onboarding
@@ -200,19 +237,28 @@ final class AppModel {
 
     func skipNotifications() { stage = .payMethods }
 
-    func savePayMethods(venmo: String?, zelle: Bool, appleCash: Bool) async {
+    func savePayMethods(name: String, venmo: String?, zelle: Bool, appleCash: Bool) async {
         guard let id = userId else { return }
         let venmo = venmo.map(VenmoName.clean)
         do {
+            try requireOnline()
             try await db.from("profiles").update(PayMethodsUpdate(venmo_username: venmo?.isEmpty == false ? venmo : nil,
                                                         has_zelle: zelle, has_apple_cash: appleCash))
                 .eq("id", value: id).run()
-            await finishOnboarding()
+            await finishOnboarding(name: name)
         } catch { self.error = "Couldn't save. Check your connection and try again." }
     }
 
-    func finishOnboarding() async {
+    func finishOnboarding(name: String) async {
         guard let id = userId else { return }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { error = "Enter your name to continue."; return }
+        do {
+            try await updateProfile(["display_name": .string(name)])
+        } catch {
+            self.error = "Couldn't save your name. Check your connection and try again."
+            return
+        }
         UserDefaults.standard.set(true, forKey: "onboarded.\(id)")
         stage = .ready
         await refresh()
@@ -265,9 +311,9 @@ final class AppModel {
                 try self.db.rpc("my_trip_nets").order("trip_id").range(from: from, to: to)
             }
             // Your own row too: onboarding and Profile change your pay methods, which the Payment page reads.
-            async let me: Profile? = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash, notify_paid, notify_expense, notify_join, notify_trip_deleted")
+            async let me: Profile? = db.from("profiles").select("id, display_name, deleted_at, venmo_username, has_zelle, has_apple_cash, notify_paid, notify_expense, notify_join, notify_trip_deleted")
                 .eq("id", value: userId ?? UUID()).single().value()
-            async let p: [Profile] = db.from("profiles").select("id, display_name, venmo_username, has_zelle, has_apple_cash")
+            async let p: [Profile] = db.from("profiles").select("id, display_name, deleted_at, venmo_username, has_zelle, has_apple_cash")
                 .neq("id", value: userId ?? UUID()).value()
             async let e: [Expense] = allPages { from, to in
                 self.db.from("expenses").select("*, expense_shares(user_id, share_cents, split_input)")

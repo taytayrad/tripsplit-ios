@@ -14,6 +14,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
 | Remove a member | active member | only when that member's net on the trip is $0 |
 | Leave a trip | active member, yourself | only when your net on the trip is $0 |
+| Delete your account | yourself | only when your net is $0 on every trip, including deleted trips and legacy removed-with-keep memberships (`delete_account`) |
 | Delete a trip | active member | soft delete |
 | Undelete a trip | member at deletion time | from the Activity row |
 | Add, edit, or delete an expense | active member | |
@@ -36,6 +37,9 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 | `device_tokens` | self | delete own rows (sign-out). Register with `register_device_token`, which also removes the token from any other account; a token belongs to one account at a time (unique) |
 
 ## Gotchas
+
+- **Deleted identities lose access immediately**, including through an access token issued before deletion. Restrictive policies guard every public app table, and privileged app RPCs verify the caller through `private.current_user_id`. Table reads return no rows for a deleted identity; RPCs refuse it. The checks hold a shared account lock so an in-flight request finishes before deletion. The private helpers inspect `auth.users` without granting clients access to that schema.
+- **Deletion status is not a name.** `profiles.deleted_at` is server-owned; clients may read it through the existing profile visibility rules but cannot write it. Friends still see the anonymized name "Deleted account" after deletion.
 
 - **Removed members lose access** to the trip and its Activity. They're always settled when they go (TRIP-14), so they never need a way back in to pay. Members removed with *keep* before that still see the suggestions that involve them.
 - **Deleted trips** disappear from every list and total, but the `trip_deleted` Activity row stays visible to members at deletion time, so they can undelete.
