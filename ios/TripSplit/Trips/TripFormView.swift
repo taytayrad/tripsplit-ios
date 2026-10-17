@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Add trip and Edit trip. Adding opens Add members next (members aren't required); you can go back from there to
-/// fix the name or dates. People picked in Add members join only on Save (Edit trip) or Done (Add trip).
-/// Edit trip lists each member's amount; someone can be removed, or leave, only at $0 (PRD › Net model).
+/// Add trip and Edit trip. Add trip's Save creates the trip and opens it, where the share sheet invites people
+/// (TRIP-40). Edit trip lists each member's amount, then Invite someone new; someone can be removed, or leave, only
+/// at $0 (PRD › Net model).
 struct TripFormView: View {
     enum Mode { case add, edit(Trip) }
     let mode: Mode
@@ -22,11 +22,6 @@ struct TripFormView: View {
     @State private var start = Date.now
     @State private var end = Date.now
     @State private var saving = false
-    /// The trip Add trip saved; from then on the form edits it instead of creating another.
-    @State private var created: Trip?
-    @State private var showingMembers = false
-    /// People picked in Add members, not on the trip until Save or Done.
-    @State private var picked: Set<UUID> = []
     @State private var loaded = false
     @FocusState private var nameFocused: Bool
     private var quick: Animation? { Motion.quick.animation(reduceMotion: reduceMotion) }
@@ -39,7 +34,7 @@ struct TripFormView: View {
     @State private var failure: Failure?
 
     private var isAdding: Bool { if case .add = mode { true } else { false } }
-    private var editing: Trip? { if case .edit(let t) = mode { t } else { created } }
+    private var editing: Trip? { if case .edit(let t) = mode { t } else { nil } }
     private var liveTrip: Trip? { editing.flatMap { app.trip($0.id) } }
 
     var body: some View {
@@ -111,31 +106,17 @@ struct TripFormView: View {
                                     }
                                 }
                         }
-                        ForEach(pickedPeople(on: trip), id: \.id) { person in
-                            HStack {
-                                Text(PersonName.shown(person.displayName))
-                                Spacer()
-                                Text(isAdding ? "Joins when you tap Done" : "Joins when you save").font(.footnote).foregroundStyle(Color.tsSecondary)
-                            }
-                            .swipeActions { if !saving { Button("Remove", role: .destructive) { picked.remove(person.id) } } }
-                        }
-                        Button { openMembers() } label: {
-                            HStack {
-                                Text("Add member").foregroundStyle(.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color(.tertiaryLabel))
-                            }
-                        }
-                        .disabled(saving)
                     } header: { Text("Members") } footer: {
                         Text("Swipe left on someone to remove them. They can be removed, or leave, once they’re settled up.")
                     }
-                    if !isAdding {
-                        Section {
-                            Button("Leave trip", role: .destructive) { confirmLeave = true }.disabled(saving)
-                        }
+                    // Its own card, not a row in the list, so it doesn't read as another person.
+                    Section {
+                        InviteRow(trip: trip).disabled(saving)
+                    } footer: {
+                        if trip.members.count >= 20 { Text("This trip has 20 people, the most it can hold.") }
                     }
                     Section {
+                        Button("Leave trip", role: .destructive) { confirmLeave = true }.disabled(saving)
                         Button("Delete trip", role: .destructive) { confirmDelete = true }.disabled(saving)
                     }
                 }
@@ -145,20 +126,14 @@ struct TripFormView: View {
             .navigationTitle(isAdding ? "Add trip" : "Edit trip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { cancel() }.disabled(saving) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { Task { await save() } }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
                 }
             }
-            .navigationDestination(isPresented: $showingMembers) {
-                if let trip = editing {
-                    AddMembersView(tripId: trip.id, picked: $picked, busy: saving, onDone: isAdding ? { Task { await finishAdding(trip) } } : nil)
-                }
-            }
             .onAppear {
-                nameFocused = false  // coming back from Add members shouldn't raise the keyboard
-                guard !loaded else { return }  // ...or undo edits made before going there
+                guard !loaded else { return }  // load once, so a later appear doesn't undo edits
                 loaded = true
                 load()
             }
@@ -213,16 +188,6 @@ struct TripFormView: View {
         .accessibilityHint(openDate == field ? "Double tap to close the calendar" : "Double tap to choose a date")
     }
 
-    private func pickedPeople(on trip: Trip) -> [Profile] {
-        let onTrip = Set(trip.members.map(\.userId))
-        return app.people.filter { picked.contains($0.id) && !onTrip.contains($0.id) }.sorted { $0.displayName < $1.displayName }
-    }
-
-    private func openMembers() {
-        nameFocused = false
-        showingMembers = true
-    }
-
     private func load() {
         guard let t = editing else { return }
         name = t.name
@@ -230,8 +195,7 @@ struct TripFormView: View {
         if let s = t.start, let e = t.end { hasDates = true; start = s; end = e }
     }
 
-    /// Edit trip: save the details, then add the people picked. Add trip: create the trip (or update the one
-    /// already created, after going back) and go to Add members.
+    /// Edit trip: save the details. Add trip: create the trip and open it, where the share sheet comes up.
     private func save() async {
         guard !saving else { return }  // a second tap before the first await would create a second trip
         saving = true; defer { saving = false }
@@ -239,39 +203,11 @@ struct TripFormView: View {
         do {
             if let t = editing {
                 try await app.updateTrip(t.id, name: trimmed, stamp: stamp == t.stamp ? nil : stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
-                if isAdding { openMembers() } else { try await addPicked(to: t.id); dismiss() }
             } else {
-                created = try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil)
-                openMembers()
+                onCreated(try await app.createTrip(name: trimmed, stamp: stamp, start: hasDates ? start : nil, end: hasDates ? end : nil))
             }
-        } catch { failure = Failure(title: "Couldn’t save", error: error) { await save() } }
-    }
-
-    /// Done in Add members, in the Add trip flow.
-    private func finishAdding(_ trip: Trip) async {
-        guard !saving else { return }
-        saving = true; defer { saving = false }  // picks and navigation are locked until it's done
-        do {
-            try await addPicked(to: trip.id)
-            onCreated(trip)
             dismiss()
-        } catch { failure = Failure(title: "Couldn’t add everyone", error: error) { await finishAdding(trip) } }
-    }
-
-    /// Each person leaves `picked` as soon as they're added, so after a partial failure only the unfinished ones
-    /// are retried (and removing someone who did get added isn't undone by a later Save).
-    private func addPicked(to trip: UUID) async throws {
-        for id in picked {
-            guard picked.contains(id) else { continue }  // un-picked since the loop started
-            try await app.addMember(id, to: trip)
-            picked.remove(id)
-        }
-    }
-
-    /// Once Add trip has saved the trip, Cancel finishes the flow on it rather than pretending it wasn't made.
-    private func cancel() {
-        if isAdding, let created { onCreated(created) }
-        dismiss()
+        } catch { failure = Failure(title: "Couldn’t save", error: error) { await save() } }
     }
 
     private func net(of user: UUID?) -> Int {
@@ -299,7 +235,7 @@ struct TripFormView: View {
         let mine = net(of: app.userId), trip = editing?.name ?? "this trip"
         if mine < 0 { return "You owe \(Money.string(mine)) on \(trip)." }
         if mine > 0 { return "You’re owed \(Money.string(mine)) on \(trip)." }
-        return "You’ll stop seeing it. Anyone on the trip can add you back."
+        return "You’ll stop seeing it, and its invite link won’t let you back in."
     }
 
     /// Closes the form and opens Settle up on this trip.
@@ -332,59 +268,5 @@ struct TripFormView: View {
         dismiss()
         onTripGone()
         Task { await app.refresh() }
-    }
-}
-
-/// Share the invite link, or pick people you already share a trip with. Picks join on Save or Done, so a mistaken
-/// pick is just unchecked.
-struct AddMembersView: View {
-    let tripId: UUID
-    @Binding var picked: Set<UUID>
-    /// True while the picks are being added: they can't change, and you can't leave, until it's done.
-    var busy = false
-    /// Set in the Add trip flow: Done adds the picks and finishes.
-    var onDone: (() -> Void)?
-    @Environment(AppModel.self) private var app
-
-    var body: some View {
-        if let trip = app.trip(tripId) {
-            let onTrip = Set(trip.members.map(\.userId))
-            List {
-                Section {
-                    ShareLink(item: InviteLink.shareURL(token: trip.inviteToken),
-                              message: Text("Join “\(trip.name)” on TripSplit so we can split costs")) {
-                        Text("Share a link")
-                    }
-                } footer: { Text("Text it to your friends. The link opens TripSplit, or the App Store first.") }
-
-                Section("Members") {
-                    ForEach(trip.members, id: \.userId) { Text($0.userId == app.userId ? "You" : PersonName.shown($0.profiles.displayName)) }
-                }
-
-                let known = app.people.filter { !onTrip.contains($0.id) && $0.deletedAt == nil }
-                    .sorted { $0.displayName < $1.displayName }
-                if !known.isEmpty {
-                    Section {
-                        ForEach(known, id: \.id) { person in
-                            CheckRow(title: PersonName.shown(person.displayName), isOn: .init(
-                                get: { picked.contains(person.id) },
-                                set: { if $0 { picked.insert(person.id) } else { picked.remove(person.id) } }))
-                                .disabled(busy)
-                        }
-                    } header: { Text("On TripSplit") } footer: {
-                        Text(onDone == nil ? "They join when you go back and tap Save." : "They join when you tap Done.")
-                    }
-                }
-            }
-            .navigationTitle("Add members")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(busy)
-            .toolbar {
-                if let onDone {
-                    if busy { ProgressView() } else { Button("Done", action: onDone).fontWeight(.semibold) }
-                }
-            }
-            .refreshable { await app.refresh() }
-        }
     }
 }

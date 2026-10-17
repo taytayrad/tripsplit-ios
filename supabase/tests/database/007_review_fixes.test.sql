@@ -1,7 +1,7 @@
 -- Fixes from the Phase 2 architectural review (prd.md › Prototype decisions › Removed members can't rejoin).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(9);
 
 create function pg_temp.net(who text, trip text) returns bigint language plpgsql as $$
 begin
@@ -9,7 +9,7 @@ begin
   return coalesce((select cents from public.my_trip_nets() where trip_id = tests.id(trip)), 0);
 end $$;
 
--- A removed member can't rejoin with the old link; an active member can add them back.
+-- A removed member can't rejoin with the old link (and since TRIP-40 nobody can add them back).
 select tests.users('you', 'alex', 'jordan');
 select tests.trip('cr', array['you', 'alex', 'jordan']);
 select tests.equal('cr', 'you', 8420, array['you', 'alex', 'jordan']);
@@ -21,13 +21,6 @@ select public.remove_member(tests.id('cr'), tests.id('jordan'));
 select tests.authenticate_as(tests.id('jordan'));
 select throws_ok(format('select public.join_trip(%L)', (select token from tests.names where k = 'cr')),
                  'P0001', 'you were removed from this trip', 'join_trip: a removed member can''t rejoin by link');
-select tests.authenticate_as(tests.id('you'));
-select public.add_member(tests.id('cr'), tests.id('jordan'));
-select ok(private.is_active_member(tests.id('cr'), tests.id('jordan')), 'add_member: an active member can add them back');
-select is(pg_temp.net('jordan', 'cr'), 0::bigint, 'add_member: they come back settled');
-select is((select count(*) from public.activity_events
-           where trip_id = tests.id('cr') and kind = 'member_joined' and actor_id = tests.id('jordan') and subject = 'cr')::int,
-          2, 'member_joined: add_member writes the same shape as join_trip (actor = joiner, subject = trip name)');
 
 -- Payments: retrying someone else's request_id is refused; deleting on a deleted trip is refused.
 select tests.users('youP', 'alexP', 'samP');

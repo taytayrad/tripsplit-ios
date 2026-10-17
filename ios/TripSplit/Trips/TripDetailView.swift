@@ -2,9 +2,13 @@ import SwiftUI
 
 /// Trip detail (Figma Flow · Net model › Trip): your net with Pay beside it, one list of expenses and payments
 /// (newest first), and Add expense pinned at the bottom. When everyone is settled, the trip's stamp says so.
+/// While you're the only member it offers Invite someone new; right after Add trip it opens the share sheet itself.
 struct TripDetailView: View {
     let tripId: UUID
+    /// Set to this trip by Add trip's Save: opens the share sheet once, then clears.
+    var inviteOnOpen: Binding<UUID?> = .constant(nil)
     @Environment(AppModel.self) private var app
+    @State private var inviting = false
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var settling = false
@@ -54,6 +58,14 @@ struct TripDetailView: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
                 }
 
+                if trip.members.count == 1 {
+                    Section {
+                        InviteRow(trip: trip)
+                    } header: {
+                        Text("Invite link ready. Friends appear here when they join.").textCase(nil)
+                    }
+                }
+
                 Section {
                     if ledger.isEmpty {
                         Text("No expenses yet. Add the first one.").font(.subheadline).foregroundStyle(Color.tsSecondary)
@@ -101,6 +113,16 @@ struct TripDetailView: View {
                 Button("Delete", role: .destructive) { Task { await deletePayment(p) } }
             } message: { _ in Text("It comes off the balances on \(trip.name). Either person on a payment can delete it.") }
             .failureAlert($failure)
+            .sheet(isPresented: $inviting) {
+                ShareSheet(items: [InviteLink.message(trip: trip.name), InviteLink.shareURL(token: trip.inviteToken)]) { inviting = false }
+                    .presentationDetents([.medium, .large])
+                    .ignoresSafeArea()
+            }
+            .onAppear {
+                guard inviteOnOpen.wrappedValue == tripId else { return }
+                inviteOnOpen.wrappedValue = nil
+                inviting = true
+            }
         } else {
             // The trip was deleted, or you left it (here or on another phone).
             Color(.systemGroupedBackground).onAppear { dismiss() }
@@ -152,6 +174,42 @@ struct PaymentRow: View {
                          caption: [payment.method.title, ExpenseLine.day(payment.date)].compactMap { $0 }.joined(separator: " · "),
                          label: nil, cents: payment.amountCents, color: .tsSecondary)
     }
+}
+
+/// Invite someone new: the share sheet with the trip's link, the only way to add people (TRIP-40). At 20 members
+/// the trip is full (the database's cap), so the row says so instead of sharing a link nobody could use.
+struct InviteRow: View {
+    let trip: Trip
+
+    var body: some View {
+        if trip.members.count >= 20 {
+            HStack {
+                Label("Invite someone new", systemImage: "square.and.arrow.up")
+                Spacer()
+                Text("\(trip.members.count) of 20").font(.footnote)
+            }
+            .foregroundStyle(Color.tsSecondary)
+            .accessibilityElement(children: .combine)
+        } else {
+            ShareLink(item: InviteLink.shareURL(token: trip.inviteToken), message: Text(InviteLink.message(trip: trip.name))) {
+                Label("Invite someone new", systemImage: "square.and.arrow.up")
+            }
+        }
+    }
+}
+
+/// The system share sheet, opened from code: `ShareLink` only opens on a tap.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    let onDone: () -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        sheet.completionWithItemsHandler = { _, _, _, _ in onDone() }
+        return sheet
+    }
+
+    func updateUIViewController(_ sheet: UIActivityViewController, context: Context) {}
 }
 
 struct Chip: View {

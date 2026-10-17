@@ -7,6 +7,8 @@ struct TripsView: View {
     @State private var showSettled = false
     @State private var path: [UUID] = []
     @State private var settling = false
+    /// The trip Add trip just created: its detail opens the share sheet once (TRIP-40).
+    @State private var inviteOnOpen: UUID?
 
     private func isSettled(_ trip: Trip) -> Bool { TripVisibility.isHidden(endDate: trip.end, netCents: app.nets[trip.id] ?? 0) }
     /// Trips still in play, newest first.
@@ -62,9 +64,9 @@ struct TripsView: View {
             .toolbar { MainHeader(onAddTrip: { addingTrip = true }, onSettleUp: { settling = true }) }
             .navigationDestination(isPresented: $settling) { SettleUpView(startTrip: nil) }
             .refreshable { await app.refresh() }
-            .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0) }
+            .navigationDestination(for: UUID.self) { TripDetailView(tripId: $0, inviteOnOpen: $inviteOnOpen) }
             .sheet(isPresented: $addingTrip) {
-                TripFormView(mode: .add) { created in path = [created.id] }
+                TripFormView(mode: .add) { created in inviteOnOpen = created.id; path = [created.id] }
             }
         }
     }

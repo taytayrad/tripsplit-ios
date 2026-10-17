@@ -63,10 +63,7 @@ Creating a trip asks for a name, an image used as the trip’s avatar wherever t
 
 ### Members
 
-Add a member in either of two ways:
-
-- Contacts, with permission. Show contacts who already have an account, and add them. Do not ask for a phone number.
-- A shareable link, through the iOS share sheet. A text message is the share path to expect. Someone without the app follows the link to the App Store, then into the trip.
+Add a member with a shareable link, through the iOS share sheet ("Invite someone new"). A text message is the share path to expect. Someone without the app follows the link to the App Store, then into the trip. There is no Contacts matching and no picker of people you already know (see Prototype decisions › Invite someone new, 2026-10-17).
 
 Swipe removes a member. Past expenses stay as they were, including shares for people no longer on the trip. Someone added later is not put on expenses already logged.
 
@@ -191,7 +188,7 @@ Do not decide these. Do not invent a default and build it.
 
 1. **Cash confirm.** Cash logs inside TripSplit. Whether that path skips the confirm step is not decided.
 2. **Journey defaults that were never confirmed.** The plan’s “Journey defaults to confirm” are not requirements. Where a rule above already decides the point, follow the rule. The undecided items are:
-   - After create, the trip opens on Add members, and members are not required.
+   - ~~After create, the trip opens on Add members, and members are not required.~~ Decided 2026-10-17: after Save the iOS share sheet opens over Trip detail (Prototype decisions › Invite someone new).
    - A trip shows its stamp, name, dates, members, and expenses newest first. Your net on the trip is already required.
    - Anything about the trip card or the header that is not already in the rules above.
    - The rest of the $0-trip note: an expense putting the trip back on the main list, a deleted trip staying out of both lists, no archive, and whether a person’s screen hides trips already settled with them or has its own “Show settled trips.” The trips-list control is already required.
@@ -209,7 +206,7 @@ Do not decide these. Do not invent a default and build it.
 These resolve conflicts and Open items above. Where this section and an earlier rule disagree, this section wins. Where the PRD and `product-plan.md` disagree, the PRD wins.
 
 - **Backend:** Supabase (Postgres, Sign in with Apple auth, realtime, edge functions for APNs).
-- **Contacts:** no Contacts matching in the MVP. "On TripSplit" lists people you already share a trip with. Everyone else joins through the share link. No phone number is ever collected.
+- **Contacts:** no Contacts matching in the MVP. Everyone joins through the share link ("Invite someone new"). *(2026-10-17: the "On TripSplit" list of people you already share a trip with is also gone.)* No phone number is ever collected.
 - **Pay apps:** store a Venmo username on Profile. Venmo opens with the person and amount filled in. Zelle and Apple Cash open their app (Apple Cash opens Messages) with the amount copied to the clipboard. Zelle and Apple Cash are stored only as "I have this."
 - **Removing a member with a balance:** the person removing them chooses in an alert:
   - *Keep balance:* the removed member's balance still counts, and they can still be paid or recorded.
@@ -221,7 +218,7 @@ These resolve conflicts and Open items above. Where this section and an earlier 
 - **Rounding:** leftover cents on percent and share splits go to the last included person, the same as equal splits.
 - **Expense date:** defaults to today and can be changed.
 - **Invite link:** joins the trip immediately. Someone already on the trip just opens it.
-- **After create:** the trip opens on Add members, which can be skipped.
+- **After create:** Save creates the trip and opens the iOS share sheet over Trip detail; closing it lands on Trip detail. *(Replaces "opens on Add members", 2026-10-17.)*
 - **Links:** Apple Developer account, no domain yet. A static page on GitHub Pages (`site/join/`, token in the URL fragment) stands in for Universal Links: it opens the app, or shows a Get TripSplit button when it isn't installed. After installing from the App Store, a new user may need to tap the link a second time.
 - **Saves:** online only. A failed save stays on screen with Retry. There is no offline queue.
 - **Shares:** whole numbers only.
@@ -286,16 +283,16 @@ These came out of the Figma prototype (Flow page in the design system file) and 
 - **Welcome modal after a link:** shown to newcomers. Someone already on the trip who taps its link just lands on Trips.
 - **Profiles are visible to anyone you've shared a trip with, including removed members**, so a removed member's name stays on the trip and, with keep, both sides can still see who they settle up with.
 - **Stamps only, no trip photos (for now):** every trip shows its generated stamp. Photo upload is removed to keep the build smaller; photos can come back later. The empty private `trip-photos` bucket remains until it's deleted in the Supabase dashboard (SQL can't delete storage rows; see `docs/data-model.md` › Notes).
-- **Removed members can't rejoin with a link.** Their old invite link no longer works for them. An active member can add them back from Add members; after a wipe they come back with no share in the old expenses.
+- **Removed members can't rejoin with a link.** Their old invite link no longer works for them. *(2026-10-17: with Add members gone, nobody can add them back for the MVP; a removed person stays out. Removal only happens at $0.)*
 - **Live updates:** the app subscribes to its trips' rows (trips, members, payments, activity; every expense change writes an activity row) and re-queries on any change, so an expense saved on one phone shows on the others within a few seconds.
 - **Expense row for your own cost:** when you paid and your share is the whole amount, the row reads "You paid $X" (the Activity wording), since "You lent $0" says nothing.
 - **Trip is locked while editing an expense.** Moving an expense between trips would change two trips' balances; delete and re-add instead.
 - **Split kinds are tabs** (Equally, Exact, Percent, Shares) on one screen; switching kinds resets that kind to its starting values.
 - **Add trip shows its stamp before saving.** The stamp is generated when the form opens, so you see what the trip will look like.
 - **Tap the stamp to regenerate it** (superseded by TRIP-39: tapping opens the stamp builder). The new stamp is kept on Save; Cancel keeps the old one.
-- **Add trip can go back from Add members** to fix the name or dates. The trip is saved on the first Save; going back edits that same trip (Save returns to Add members), and Cancel after that point keeps it. Delete trip undoes a trip made by mistake.
+- **~~Add trip can go back from Add members~~** *(retired 2026-10-17: there is no Add members screen.)* The trip is saved on Save. To fix the name or dates afterward, use Edit trip. Delete trip undoes a trip made by mistake.
 - **Trip dates open an inline calendar** under the Start or End row (the Calendar app's pattern; tap the row again to close), instead of the compact picker's popover, which handed focus back to the name and flashed the keyboard.
-- **Add members picks, then joins on Save:** tapping someone under "On TripSplit" checks them (tap again to uncheck). They join only when you tap Save on Edit trip, or Done in the Add trip flow; picked people show on Edit trip's member list, where a swipe removes them, and Cancel adds no one. Sharing the link is unchanged.
+- **~~Add members picks, then joins on Save~~** *(retired 2026-10-17: people join only by opening the share link; nobody is picked or added by someone else.)*
 - **Trip detail chips open Edit trip:** tapping the dates chip or the members chip opens the same Edit trip sheet as the Edit button.
 - **Settle up from a trip:** when you owe on a trip, tapping the amount on Trip detail opens the person screen of whoever you owe there. If you owe several people on the trip, an action sheet ("Who are you paying?") lists them, most owed first, as "Alex · $42". The person screen is unchanged: its pay bar settles your whole balance with them, across trips. A balance you're owed isn't tappable.
 - **The + button** adds an expense, or starts a trip when you have none (the Figma header). Another trip starts from an "Add trip" button under the trip cards on Trips.
@@ -352,6 +349,13 @@ These came out of the Figma prototype (Flow page in the design system file) and 
   - **Settle up with everyone settled:** the three-stamp cluster, "You’re settled up" / "You don’t owe anyone, and nobody owes you."; the "Who do you want to settle?" title is dropped.
   - **As built (TRIP-33):** Couldn’t load also covers Activity ("Couldn’t load your activity"). A failed refresh with something already loaded keeps it on screen silently; the old "Couldn’t load your trips. Pull to retry." alert is gone. Coming back online refreshes, and VoiceOver announces "You’re offline" when the connection drops. Every write is refused before the request while offline (the server still decides); onboarding's pay-methods save and deleting an expense keep the "Something went wrong" alert. Trips is a list, so pull to refresh no longer sticks.
   - **First load (2026-10-15):** Restoring a session keeps the loading surface visible until the first data request and any pending invite join finish; finishing onboarding also waits before opening Trips. A successful join has the invited trip and welcome sheet ready when Trips opens. Empty states appear only after a successful empty load. A failed first load opens the existing Retry state, and foreground refreshes keep already loaded trips visible. If the account changes during loading, its auth event is processed before starting realtime.
+
+- **Invite someone new is the only way to add people (TRIP-40, 2026-10-17; Figma › Flow · Net model › Invite someone new):** the Add members screen, the "On TripSplit" list, and the `add_member` function are gone (migration `20261017000001_drop_add_member`). Nobody is added by another member, so there is no "added you" push; a link join keeps the existing "joined" push.
+  - **Create flow:** Save creates the trip and opens the system share sheet over Trip detail with the invite link ("Join “Coast Road” on TripSplit so we can split costs"). Closing it lands on Trip detail. While you are the only member, Trip detail shows "Invite link ready. Friends appear here when they join." and an "Invite someone new" card above Expenses.
+  - **Edit trip:** "Invite someone new" is its own card under the Members card and its swipe footer, with a 24pt gap, not a row in the list. At 20 members it stays readable, reads "20 of 20" at its right, and a footer says "This trip has 20 people, the most it can hold." (the server still enforces the cap on every join).
+  - **Leave trip and Delete trip** share one card with a divider, with 32pt above it, so they are not two separate red cards 8pt apart.
+  - **Consequences:** a removed member cannot be brought back, since their old link is refused (line above). Leave trip's confirm now says "You’ll stop seeing it, and its invite link won’t let you back in." The "Link copied" toast was dropped: Copy belongs to the system share sheet, which gives the app no callback.
+  - **Skipped for now:** the gray "Settled $0" hero on a trip with no expenses; "Gets back" in the Edit trip comps still says that where the copy rule says "You’re owed".
 
 ### Net model (approved 2026-10-06; building in TRIP-10 to TRIP-14)
 Approved in Figma (page "Flow · Net model") and built in TRIP-10 to TRIP-14. When an entry here conflicts with an earlier one, this one wins.

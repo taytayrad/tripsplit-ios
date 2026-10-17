@@ -129,7 +129,6 @@ Every multi-row money write is one function in one transaction, so invariants ho
 |---|---|
 | `create_trip(name, stamp, dates)` | inserts trip with generated stamp and invite token, adds creator as member, logs `trip_created` |
 | `join_trip(invite_token)` | adds caller as member, or no-op if already a member; refused for someone removed from the trip; logs `member_joined` |
-| `add_member(trip, user)` | adds someone you already share a trip with (including a removed member, who comes back with no share in old expenses); logs `member_joined` |
 | `invite_preview(invite_token)` | trip name, inviter, and stamp for the sign-in screen; the one function anon may call |
 | `save_expense(expense, split_inputs)` | computes shares (remainder rule), inserts or updates expense and shares, logs `expense_added` or `expense_updated` with deltas |
 | `delete_expense(id)` | logs `expense_deleted` with deltas, then sets `deleted_at` (the expense and its shares stay, out of every net). A deleted expense can't be edited (`save_expense` is refused: "restore it first"). Expenses deleted before TRIP-27 were hard-deleted |

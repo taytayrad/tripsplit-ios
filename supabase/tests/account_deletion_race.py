@@ -67,8 +67,8 @@ commit;
         add = f"""
 set application_name = '{prefix}add';
 begin;
-select tests.authenticate_as(tests.id('{prefix}friend'));
-select public.add_member(tests.id('{prefix}target'), tests.id('{prefix}person'));
+select tests.authenticate_as(tests.id('{prefix}person'));
+select public.join_trip((select token from tests.names where k = '{prefix}target'));
 select tests.equal('{prefix}target', '{prefix}friend', 2000, array['{prefix}person', '{prefix}friend']);
 {'select pg_sleep(3);' if not deletion_first else ''}
 commit;

@@ -10,7 +10,7 @@ Who can do what, and the Supabase row-level security (RLS) that enforces it. The
 |---|---|---|
 | Create a trip | any signed-in user | creator becomes a member |
 | Edit trip name, dates, stamp | active member | |
-| Add a member, share the invite link | active member | 20-member cap |
+| Share the invite link (the only way to add people, TRIP-40) | active member | 20-member cap, enforced on every join |
 | Join with a link | anyone holding the token, except someone removed from the trip | already a member: no-op; removed: refused (an active member can add them back) |
 | Remove a member | active member | only when that member's net on the trip is $0 |
 | Leave a trip | active member, yourself | only when your net on the trip is $0 |

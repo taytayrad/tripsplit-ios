@@ -21,6 +21,9 @@ enum InviteLink {
         return c.url!
     }
 
+    /// The text sent with the link.
+    static func message(trip name: String) -> String { "Join “\(name)” on TripSplit so we can split costs" }
+
     /// The app URL the invite page opens.
     static func appURL(token: String) -> URL { URL(string: "tripsplit://join/\(token)")! }
 

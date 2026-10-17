@@ -16,7 +16,7 @@ flowchart LR
     paym -->|from invite| welcome["Added to trip [I04]"]
     welcome -->|View Trips| trips
 
-    trips -- "+ / Add Trip" --> addtrip["Add trip [05]"] --> members["Add members [06, 07]"] --> trip["Trip detail [08, 10]"]
+    trips -- "+ / Add Trip" --> addtrip["Add trip [05]"] --> share["System share sheet [N1]"] --> trip["Trip detail · just you [N2], [08, 10]"]
     trips -- card --> trip
     trip -- "Add expense" --> expense["Expense form [09, E1]"]
     trip -- "expense row" --> details["Expense details [D1, D2, D7]"]
@@ -59,7 +59,7 @@ Flow (current build) page:
 | [Onboarding](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3485) | Sign in, notifications, pay methods (+ invitee variants). The pay-methods form also requires your name, prefilled when available; Skip pay methods still saves it before joining an invite. Existing blank profiles return here on sign-in (TRIP-28). |
 | [Invite](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3487) | Welcome modal |
 | [Trips](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3489) | Trips list states |
-| [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3491) | Add trip, members, trip detail states |
+| [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3491) | Add trip, trip detail states (Add members [06, 07] are retired; see [Invite someone new](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=490-2909)) |
 | [Expense](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3493) | Add/edit form, payer, splits, delete |
 | [Activity](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3495) | Feed, undelete alert |
 | [Balance](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3497) | Your Balance sheet. **Retired (TRIP-13)**; don't build. |
@@ -72,7 +72,7 @@ Flow (current build) page:
 | Screen | SwiftUI presentation |
 |---|---|
 | Trips, Activity, Profile | `TabView` tabs |
-| Trip detail, Add members, Expense details | pushed in `NavigationStack` (Expense details' Edit opens the Expense form sheet) |
+| Trip detail, Expense details | pushed in `NavigationStack` (Expense details' Edit opens the Expense form sheet) |
 | Add trip, Expense form | `.sheet` with its own `NavigationStack` (payer and split pickers push inside it) |
 | Stamp builder | `.sheet` (large) from Add trip and Edit trip, over the form; Figma › Flow · Net model › [Stamp builder](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=367-3652) |
 | Apple Cash guide | `.sheet` (large, scrolls) over the Payment page; Open Messages leaves for the Messages app, and coming back opens the Log Payment Sheet |

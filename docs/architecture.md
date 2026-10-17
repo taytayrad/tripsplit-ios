@@ -74,7 +74,7 @@ flowchart TB
 | Integer cents everywhere | No float rounding. The remainder rule is exact. |
 | Online-only saves with Retry | The PRD keeps offline entry out of scope. Simpler than a sync queue. |
 | Activity deltas snapshotted at write time | Old Activity rows keep the dollar line they had. |
-| No contacts and no phone | The PRD forbids phone numbers. "On TripSplit" lists people you already share a trip with. |
+| No contacts and no phone | The PRD forbids phone numbers. People join only by the share link; there is no "On TripSplit" list (retired 2026-10-17). |
 
 ## Related docs
 
