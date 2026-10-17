@@ -12,6 +12,7 @@ interface EventRow {
   id: string;
   kind: string;
   actor_id: string;
+  actor_name?: string | null;
   subject: string | null;
   deltas: Record<string, number>;
   expense_payer_id: string | null;
@@ -35,7 +36,7 @@ interface DeviceToken {
   apns_environment: APNsEnvironment | null;
 }
 
-async function authorized(request: Request, secret: string) {
+export async function authorized(request: Request, secret: string) {
   if (!secret) return false;
   const digest = (s: string) =>
     crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -97,7 +98,7 @@ export async function handlePush(
   try {
     // Read the canonical row. A webhook supplies only its id; it cannot supply banner wording or recipients.
     const columns =
-      "id,kind,actor_id,subject,deltas,expense_payer_id,expense_amount_cents,expense_payer_share_cents,actor:profiles!activity_events_actor_id_fkey(display_name),trips!activity_events_trip_id_fkey(name),payments(payer_id,payee_id,amount_cents,payer:profiles!payments_payer_id_fkey(display_name),payee:profiles!payments_payee_id_fkey(display_name))";
+      "id,kind,actor_id,actor_name,subject,deltas,expense_payer_id,expense_amount_cents,expense_payer_share_cents,actor:profiles!activity_events_actor_id_fkey(display_name),trips!activity_events_trip_id_fkey(name),payments(payer_id,payee_id,amount_cents,payer:profiles!payments_payer_id_fkey(display_name),payee:profiles!payments_payee_id_fkey(display_name))";
     const [[e], recipients] = await Promise.all([
       db<EventRow[]>(
         `activity_events?id=eq.${eventId}&select=${encodeURIComponent(columns)}`,
@@ -123,6 +124,7 @@ export async function handlePush(
         kind: e.kind,
         actorId: e.actor_id,
         actorName: e.actor?.display_name ?? "",
+        actorSnapshot: e.actor_name,
         tripName: e.trips.name,
         subject: e.subject,
         deltas: e.deltas,

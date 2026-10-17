@@ -8,6 +8,7 @@ struct Profile: Codable, Identifiable, Hashable {
     var venmoUsername: String?
     var hasZelle: Bool
     var hasAppleCash: Bool
+    var deletedAt: Date? = nil
     /// Push preferences; only loaded for your own profile (nil reads as on, the column default).
     var notifyPaid: Bool? = nil
     var notifyExpense: Bool? = nil
@@ -17,6 +18,7 @@ struct Profile: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, displayName = "display_name", venmoUsername = "venmo_username"
         case hasZelle = "has_zelle", hasAppleCash = "has_apple_cash"
+        case deletedAt = "deleted_at"
         case notifyPaid = "notify_paid", notifyExpense = "notify_expense", notifyJoin = "notify_join"
         case notifyTripDeleted = "notify_trip_deleted"
     }
@@ -41,9 +43,13 @@ struct PersonName: Codable, Hashable {
 
     /// How a stored display name is shown: the first word, then the last word's initial.
     /// "Atish Dey" → "Atish D."; "Atish" stays "Atish". The stored name is unchanged.
+    /// A deleted account's profile name (TRIP-28), shown in full, never shortened to "Deleted a.".
+    static let deletedAccount = "Deleted account"
+
     static func shown(_ displayName: String) -> String {
+        if displayName == deletedAccount { return displayName }
         let words = displayName.split(whereSeparator: \.isWhitespace).map(String.init)
-        guard let first = words.first else { return "" }
+        guard let first = words.first else { return "Someone" }
         guard let last = words.dropFirst().last, let initial = last.first else { return first }
         return "\(first) \(initial)."
     }

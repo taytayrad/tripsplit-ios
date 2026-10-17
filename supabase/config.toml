@@ -419,3 +419,7 @@ enabled = true
 [functions.push]
 # A dedicated Vault/Edge Function shared secret is checked in the handler; client JWTs are not accepted.
 verify_jwt = false
+
+[functions.apple]
+# Checks its own callers: the app's JWT (code exchange) or the Vault webhook secret (revoke).
+verify_jwt = false

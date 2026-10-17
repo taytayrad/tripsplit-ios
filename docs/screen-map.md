@@ -56,7 +56,7 @@ Flow (current build) page:
 
 | Section | Contents |
 |---|---|
-| [Onboarding](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3485) | Sign in, notifications, pay methods (+ invitee variants) |
+| [Onboarding](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3485) | Sign in, notifications, pay methods (+ invitee variants). The pay-methods form also requires your name, prefilled when available; Skip pay methods still saves it before joining an invite. Existing blank profiles return here on sign-in (TRIP-28). |
 | [Invite](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3487) | Welcome modal |
 | [Trips](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3489) | Trips list states |
 | [Trip](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3491) | Add trip, members, trip detail states |
@@ -64,7 +64,7 @@ Flow (current build) page:
 | [Activity](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3495) | Feed, undelete alert |
 | [Balance](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3497) | Your Balance sheet. **Retired (TRIP-13)**; don't build. |
 | [Person & Payments](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3499) | Person screens, log sheets, settled. **Retired (TRIP-13)**; the Log Payment Sheet component is still used. |
-| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | **Retired (TRIP-22)**; build from Flow · Net model › [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=297-1283) (F1–F8) |
+| [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3501) | **Retired (TRIP-22)**; build from Flow · Net model › [Profile](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=297-1283) (F1–F8; F6 "Settle Up First" and F7 "Delete Your Account?" are alerts from Delete account) |
 | [Prototype only](https://www.figma.com/design/qyUUFgiPUvHGS02kVJMDZD?node-id=42-3503) | Stand-ins. **Don't build.** |
 
 ## Presentation
