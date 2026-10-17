@@ -65,11 +65,11 @@ select throws_ok(format('select public.join_trip(%L)', (select token from tests.
 select lives_ok(format('select public.join_trip(%L)', (select token from tests.names where k = 'shared')),
                 'the shared trip''s invite still works');
 
--- A deleted account can't be added back: it has no sign-in.
+-- A deleted account can't join, even with an old token.
 select tests.trip('next', array['alex']);
-select tests.authenticate_as(tests.id('alex'));
-select throws_ok(format('select public.add_member(%L, %L)', tests.id('next'), tests.id('jordan')),
-                 'P0001', 'that account was deleted', 'a deleted account can''t be added to a trip');
+select tests.authenticate_as(tests.id('jordan'));
+select throws_ok(format('select public.join_trip(%L)', (select token from tests.names where k = 'next')),
+                 'P0001', 'that account was deleted', 'a deleted account can''t join a trip');
 
 -- Past leaves stay leaves: the snapshot keeps the name they had.
 select tests.clear_authentication();

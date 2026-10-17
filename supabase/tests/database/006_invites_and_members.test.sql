@@ -1,24 +1,13 @@
--- Phase 2 database additions: adding people you know and the invite preview.
+-- Phase 2 database additions: the invite preview. Since TRIP-40 the link is the only way to add people.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(7);
 
-select tests.users('you', 'alex', 'sam', 'olive');
+select tests.users('you', 'alex', 'sam');
 select tests.trip('cr', array['you', 'alex']);          -- you and Alex share Coast Road
 select tests.trip('lh', array['you', 'sam']);           -- you and Sam share Lake House
 
--- add_member: you can add someone you already share a trip with.
-select tests.authenticate_as(tests.id('you'));
-select public.add_member(tests.id('cr'), tests.id('sam'));
-select ok(private.is_active_member(tests.id('cr'), tests.id('sam')), 'add_member: Sam (from Lake House) is now on Coast Road');
-select is((select count(*) from public.activity_events where trip_id = tests.id('cr') and kind = 'member_joined'
-           and actor_id = tests.id('sam') and subject = 'cr')::int, 1,
-          'add_member: logged as Sam joining the trip');
-select throws_ok(format('select public.add_member(%L, %L)', tests.id('cr'), tests.id('olive')),
-                 'P0001', 'you can only add people you already share a trip with', 'add_member: strangers need the link');
-select tests.authenticate_as(tests.id('olive'));
-select throws_ok(format('select public.add_member(%L, %L)', tests.id('cr'), tests.id('olive')),
-                 'P0001', 'not a member of this trip', 'add_member: outsiders can''t add themselves');
+select hasnt_function('public', 'add_member', array['uuid', 'uuid'], 'add_member is gone: people join only by link');
 
 -- invite_preview: readable before signing in, shows only the trip name, inviter, and stamp.
 select tests.clear_authentication();

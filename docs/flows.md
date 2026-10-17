@@ -109,9 +109,8 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Active: create_trip (creator) / join_trip / added
+    [*] --> Active: create_trip (creator) / join_trip
     Active --> Removed: remove_member / leave_trip (net is $0)
-    Removed --> Active: add_member
     note right of Removed: No trip access.<br/>Net stays $0.<br/>(Members removed with keep or wipe before TRIP-14 stay as they were.)
 ```
 

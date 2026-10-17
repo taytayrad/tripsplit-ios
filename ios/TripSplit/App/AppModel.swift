@@ -34,7 +34,7 @@ final class AppModel {
     var activity: [ActivityEvent] = []
     /// Retained through sign-in/onboarding when a notification launches the app.
     var pushEventId: UUID?
-    /// People you share a trip with ("On TripSplit"), with their pay methods.
+    /// People you share a trip with, with their pay methods.
     var people: [Profile] = []
     var pendingInvite: String? {
         didSet { UserDefaults.standard.set(pendingInvite, forKey: "pendingInvite"); inviteErrorShown = false }
@@ -512,12 +512,6 @@ final class AppModel {
         await refresh()
     }
 
-    func addMember(_ user: UUID, to trip: UUID) async throws {
-        try requireOnline()
-        try await db.rpc("add_member", params: ["p_trip": trip, "p_user": user]).run()
-        await refresh()
-    }
-
     /// Only someone at $0 on the trip can be removed (TRIP-14); the server refuses otherwise.
     func removeMember(_ user: UUID, from trip: UUID) async throws {
         try requireOnline()
@@ -561,7 +555,7 @@ final class AppModel {
             self.error = "That invite link didn't work. Ask for a new one."
         } catch let e as PostgrestError where e.message.contains("removed from this trip") {
             pendingInvite = nil
-            self.error = "You were removed from that trip. Ask a member to add you back."
+            self.error = "You were removed from that trip, so its invite link won’t work for you."
         } catch {
             // Keep the token so pull-to-refresh retries the join; say why once.
             guard !inviteErrorShown else { return }
